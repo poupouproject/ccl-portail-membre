@@ -5,14 +5,17 @@ import { supabase } from "@/lib/supabase";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, Check, X, ChevronRight } from "lucide-react";
-import { formatDate, formatTime, cn } from "@/lib/utils";
+import { MapPin, Clock, Check, X } from "lucide-react";
+import { formatTime, cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import type { Event, Group } from "@/types/database";
-import Link from "next/link";
 
 interface EventWithGroup extends Event {
   groups: Group;
+}
+
+interface AttendanceRecord {
+  status: string;
 }
 
 interface EventListItemProps {
@@ -29,15 +32,16 @@ export function EventListItem({ event, profileId, isPast = false }: EventListIte
     async function fetchAttendance() {
       if (!profileId) return;
 
-      const { data } = await supabase
+      const { data: attendanceData } = await supabase
         .from("attendance")
         .select("status")
         .eq("event_id", event.id)
         .eq("profile_id", profileId)
         .single();
 
-      if (data) {
-        setAttendanceStatus(data.status);
+      const attendance = attendanceData as AttendanceRecord | null;
+      if (attendance) {
+        setAttendanceStatus(attendance.status);
       }
     }
 
@@ -49,7 +53,7 @@ export function EventListItem({ event, profileId, isPast = false }: EventListIte
 
     setIsUpdating(true);
 
-    const { error } = await supabase.from("attendance").upsert({
+    const { error } = await (supabase as any).from("attendance").upsert({
       event_id: event.id,
       profile_id: profileId,
       status,

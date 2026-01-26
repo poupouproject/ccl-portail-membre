@@ -15,6 +15,10 @@ interface EventWithGroup extends Event {
   groups: Group;
 }
 
+interface AttendanceRecord {
+  status: string;
+}
+
 interface NextEventCardProps {
   event: EventWithGroup | null;
   profileId?: string;
@@ -35,22 +39,23 @@ export function NextEventCard({ event, profileId }: NextEventCardProps) {
         .eq("event_id", event.id);
 
       if (data) {
-        setStaffing(data);
+        setStaffing(data as EventStaffing[]);
       }
     }
 
     async function fetchAttendance() {
       if (!event || !profileId) return;
 
-      const { data } = await supabase
+      const { data: attendanceData } = await supabase
         .from("attendance")
         .select("status")
         .eq("event_id", event.id)
         .eq("profile_id", profileId)
         .single();
 
-      if (data) {
-        setAttendanceStatus(data.status);
+      const attendance = attendanceData as AttendanceRecord | null;
+      if (attendance) {
+        setAttendanceStatus(attendance.status);
       }
     }
 
@@ -63,7 +68,7 @@ export function NextEventCard({ event, profileId }: NextEventCardProps) {
 
     setIsUpdating(true);
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("attendance")
       .upsert({
         event_id: event.id,

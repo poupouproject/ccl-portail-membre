@@ -40,7 +40,7 @@ export function AnnouncementsFeed({ announcements, partners }: AnnouncementsFeed
 
   return (
     <div className="space-y-4">
-      {feedItems.map((item, index) => {
+      {feedItems.map((item) => {
         if (item.type === "announcement") {
           const announcement = item.data as Announcement;
           return (

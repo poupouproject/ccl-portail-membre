@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,6 +20,11 @@ interface ChatMessage {
   content: string;
   created_at: string;
   profile?: Profile;
+}
+
+interface GroupMembershipWithGroup {
+  group_id: string;
+  groups: Group | null;
 }
 
 export default function TeamPage() {
@@ -39,14 +44,15 @@ export default function TeamPage() {
 
       try {
         // Récupérer le groupe de l'athlète
-        const { data: membership } = await supabase
+        const { data: membershipData } = await supabase
           .from("group_members")
           .select("group_id, groups(*)")
           .eq("profile_id", activeProfile.id)
           .single();
 
+        const membership = membershipData as unknown as GroupMembershipWithGroup | null;
         if (membership?.groups) {
-          setGroup(membership.groups as unknown as Group);
+          setGroup(membership.groups);
         }
       } catch (error) {
         console.error("Erreur lors du chargement du groupe:", error);

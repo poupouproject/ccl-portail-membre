@@ -13,3 +13,4 @@ if (!supabaseUrl || !supabaseKey) {
  * Gère automatiquement les cookies pour la synchronisation client/serveur
  */
 export const supabase = createBrowserClient<Database>(supabaseUrl, supabaseKey);
+

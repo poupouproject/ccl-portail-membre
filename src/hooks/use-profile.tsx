@@ -10,6 +10,11 @@ interface ProfileAccess {
   relation: RelationType;
 }
 
+interface ProfileAccessRow {
+  relation: string;
+  profile: Profile | null;
+}
+
 interface ProfileContextType {
   user: User | null;
   profiles: ProfileAccess[];
@@ -44,10 +49,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
 
     if (data && data.length > 0) {
-      const profileAccess = data
+      const rawData = data as unknown as ProfileAccessRow[];
+      const profileAccess = rawData
         .filter((item) => item.profile)
         .map((item) => ({
-          profile: item.profile as unknown as Profile,
+          profile: item.profile as Profile,
           relation: item.relation as RelationType,
         }));
 

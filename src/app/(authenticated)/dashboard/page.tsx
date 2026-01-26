@@ -12,6 +12,10 @@ interface EventWithGroup extends Event {
   groups: Group;
 }
 
+interface GroupMembership {
+  group_id: string;
+}
+
 export default function DashboardPage() {
   const { activeProfile, isLoading: profileLoading } = useProfile();
   const [nextEvent, setNextEvent] = useState<EventWithGroup | null>(null);
@@ -27,11 +31,13 @@ export default function DashboardPage() {
 
       try {
         // Récupérer le groupe de l'athlète
-        const { data: groupMembership } = await supabase
+        const { data: groupMembershipData } = await supabase
           .from("group_members")
           .select("group_id")
           .eq("profile_id", activeProfile.id)
           .single();
+
+        const groupMembership = groupMembershipData as GroupMembership | null;
 
         // Récupérer le prochain événement
         if (groupMembership) {

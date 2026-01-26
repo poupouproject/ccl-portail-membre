@@ -1,60 +1,94 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Bike, Loader2 } from "lucide-react";
 
 /**
  * Page de callback OAuth
  * Reçoit le hash fragment avec les tokens d'authentification
- * et établit la session avant de rediriger vers le dashboard.
+ * et établit la session avant de rediriger.
  */
 export default function AuthCallbackPage() {
   const [status, setStatus] = useState("Connexion en cours...");
+  const hasChecked = useRef(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("[Auth Callback] Auth state change:", event, !!session);
+    const handleAuth = async () => {
+      if (hasChecked.current) return;
+      
+      try {
+        // Obtenir la session (gère le fragment d'URL automatiquement)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (event === "SIGNED_IN" && session) {
-          setStatus("Session établie, redirection...");
-          // Petit délai pour s'assurer que les cookies sont définis
-          await new Promise((resolve) => setTimeout(resolve, 200));
-          // Rechargement complet pour que le serveur voie les nouveaux cookies
-          window.location.href = "/dashboard";
-        } else if (event === "TOKEN_REFRESHED" && session) {
-          window.location.href = "/dashboard";
-        } else if (event === "SIGNED_OUT") {
-          setStatus("Déconnecté, redirection...");
-          window.location.href = "/login";
+        if (sessionError || !session) {
+          console.error("[Auth Callback] Session error:", sessionError);
+          setStatus("Erreur de session, retour au login...");
+          setTimeout(() => window.location.href = "/login", 1500);
+          return;
         }
-      }
-    );
 
-    // Vérifier si une session existe déjà
-    const checkExistingSession = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+        hasChecked.current = true;
+        const userId = session.user.id;
+        const email = session.user.email;
 
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log("[Auth Callback] Existing session check:", !!session);
+        setStatus("Vérification du profil...");
 
-      if (session) {
-        setStatus("Session trouvée, redirection...");
-        window.location.href = "/dashboard";
-      } else if (!window.location.hash.includes("access_token")) {
-        setStatus("Aucune session, retour au login...");
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 1000);
+        // 1. Vérifier si l'utilisateur a déjà un accès profil
+        const { data: accessData } = await supabase
+          .from("user_profile_access")
+          .select("id")
+          .eq("user_id", userId)
+          .limit(1);
+
+        if (accessData && accessData.length > 0) {
+          setStatus("Profil trouvé, redirection...");
+          window.location.href = "/dashboard";
+          return;
+        }
+
+        // 2. Pas d'accès direct, chercher un profil par email
+        if (email) {
+          const { data: profileDataRaw } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("email", email)
+            .eq("is_active", true)
+            .limit(1);
+
+          const profileData = profileDataRaw as any[] | null;
+
+          if (profileData && profileData.length > 0) {
+            // Profil trouvé par email, créer le lien user_profile_access
+            const { error: linkError } = await (supabase as any)
+              .from("user_profile_access")
+              .insert({
+                user_id: userId,
+                profile_id: profileData[0].id,
+                relation: "self",
+              });
+
+            if (!linkError) {
+              setStatus("Profil associé, redirection...");
+              window.location.href = "/dashboard";
+              return;
+            }
+            console.error("[Auth Callback] Link error:", linkError);
+          }
+        }
+
+        // 3. Aucun profil trouvé
+        setStatus("Aucun profil actif trouvé...");
+        setTimeout(() => window.location.href = "/not-registered", 500);
+
+      } catch (err) {
+        console.error("[Auth Callback] Unexpected error:", err);
+        setStatus("Une erreur est survenue...");
+        setTimeout(() => window.location.href = "/login", 2000);
       }
     };
 
-    checkExistingSession();
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    handleAuth();
   }, []);
 
   return (
@@ -67,3 +101,4 @@ export default function AuthCallbackPage() {
     </div>
   );
 }
+

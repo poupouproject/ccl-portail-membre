@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDate, getInitials } from "@/lib/utils";
-import type { Evaluation, Profile, Json } from "@/types/database";
+import type { Evaluation, Profile } from "@/types/database";
 
 interface EvaluationWithCoach extends Evaluation {
   coach: Profile | null;

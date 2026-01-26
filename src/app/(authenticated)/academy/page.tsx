@@ -13,6 +13,15 @@ interface EvaluationWithCoach extends Evaluation {
   coach: Profile | null;
 }
 
+interface GroupMembershipWithLevel {
+  group_id: string;
+  groups: { level_required: number } | null;
+}
+
+interface ProgressionRecord {
+  video_id: string;
+}
+
 export default function AcademyPage() {
   const { activeProfile, isLoading: profileLoading } = useProfile();
   const [videos, setVideos] = useState<AcademyVideo[]>([]);
@@ -28,13 +37,14 @@ export default function AcademyPage() {
 
       try {
         // Récupérer le niveau du groupe de l'athlète
-        const { data: groupMembership } = await supabase
+        const { data: groupMembershipData } = await supabase
           .from("group_members")
           .select("group_id, groups(level_required)")
           .eq("profile_id", activeProfile.id)
           .single();
 
-        const userLevel = (groupMembership?.groups as { level_required: number } | null)?.level_required || 1;
+        const groupMembership = groupMembershipData as unknown as GroupMembershipWithLevel | null;
+        const userLevel = groupMembership?.groups?.level_required || 1;
 
         // Récupérer les vidéos filtrées par niveau
         const { data: videosData } = await supabase
@@ -46,16 +56,17 @@ export default function AcademyPage() {
           .order("title");
 
         if (videosData) {
-          setVideos(videosData);
+          setVideos(videosData as AcademyVideo[]);
         }
 
         // Récupérer la progression
-        const { data: progressionData } = await supabase
+        const { data: progressionDataRaw } = await supabase
           .from("profile_progression")
           .select("video_id")
           .eq("profile_id", activeProfile.id)
           .eq("is_completed", true);
 
+        const progressionData = progressionDataRaw as ProgressionRecord[] | null;
         if (progressionData) {
           setCompletedVideos(new Set(progressionData.map((p) => p.video_id)));
         }
@@ -84,7 +95,7 @@ export default function AcademyPage() {
     if (!activeProfile) return;
 
     if (completed) {
-      await supabase.from("profile_progression").upsert({
+      await (supabase as any).from("profile_progression").upsert({
         profile_id: activeProfile.id,
         video_id: videoId,
         is_completed: true,
@@ -92,7 +103,7 @@ export default function AcademyPage() {
       });
       setCompletedVideos((prev) => new Set([...prev, videoId]));
     } else {
-      await supabase
+      await (supabase as any)
         .from("profile_progression")
         .delete()
         .eq("profile_id", activeProfile.id)
@@ -104,7 +115,6 @@ export default function AcademyPage() {
       });
     }
   };
-
   if (profileLoading || isLoading) {
     return (
       <div className="space-y-4">

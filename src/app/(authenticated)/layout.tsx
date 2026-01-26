@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ProfileProvider } from "@/hooks/use-profile";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { AppHeader } from "@/components/layout/app-header";
+import type { Database } from "@/types/database";
 
 export default async function AuthenticatedLayout({
   children,
@@ -12,7 +13,7 @@ export default async function AuthenticatedLayout({
 }) {
   const cookieStore = await cookies();
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -38,6 +39,17 @@ export default async function AuthenticatedLayout({
 
   if (!user) {
     redirect("/login");
+  }
+
+  // Vérifier que l'utilisateur a un profil dans la BD
+  const { data: accessData } = await supabase
+    .from("user_profile_access")
+    .select("id")
+    .eq("user_id", user.id)
+    .limit(1);
+
+  if (!accessData || accessData.length === 0) {
+    redirect("/not-registered");
   }
 
   return (

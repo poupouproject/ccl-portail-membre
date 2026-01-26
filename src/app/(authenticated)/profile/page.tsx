@@ -13,7 +13,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  User,
   Users,
   CreditCard,
   Gift,
@@ -24,8 +23,13 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
-import type { Partner } from "@/types/database";
+import type { Partner, Profile } from "@/types/database";
 import { useEffect } from "react";
+
+interface ClaimedProfile extends Profile {
+  id: string;
+  first_name: string;
+}
 
 export default function ProfilePage() {
   const { user, activeProfile, profiles, isLoading: profileLoading } = useProfile();
@@ -43,7 +47,7 @@ export default function ProfilePage() {
         .order("tier");
 
       if (data) {
-        setPartners(data);
+        setPartners(data as Partner[]);
       }
     }
 
@@ -57,11 +61,13 @@ export default function ProfilePage() {
 
     try {
       // Chercher le profil avec ce code
-      const { data: profile, error: profileError } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
         .eq("claim_code", claimCode.toUpperCase())
         .single();
+
+      const profile = profileData as ClaimedProfile | null;
 
       if (profileError || !profile) {
         toast({
@@ -73,10 +79,10 @@ export default function ProfilePage() {
       }
 
       // Créer le lien d'accès
-      const { error: accessError } = await supabase.from("user_profile_access").insert({
+      const { error: accessError } = await (supabase as any).from("user_profile_access").insert({
         user_id: user.id,
         profile_id: profile.id,
-        relation: "parent", // Par défaut, on assume que c'est un parent qui réclame
+        relation: "parent",
       });
 
       if (accessError) {
@@ -89,7 +95,7 @@ export default function ProfilePage() {
       }
 
       // Supprimer le code de réclamation (utilisé une seule fois)
-      await supabase
+      await (supabase as any)
         .from("profiles")
         .update({ claim_code: null })
         .eq("id", profile.id);

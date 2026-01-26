@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import type { Database } from "@/types/database";
+import type { Database, Profile } from "@/types/database";
+
+interface ProfileAccessRow {
+  relation: string;
+  profile: Profile | null;
+}
 
 /**
  * Crée un client Supabase pour les composants serveur
@@ -51,13 +56,15 @@ export async function getServerProfile() {
   const supabase = await createSupabaseServerClient();
   
   // Récupère les profils auxquels l'utilisateur a accès
-  const { data: access } = await supabase
+  const { data: accessData } = await supabase
     .from("user_profile_access")
     .select(`
       relation,
       profile:profiles(*)
     `)
     .eq("user_id", user.id);
+
+  const access = accessData as unknown as ProfileAccessRow[] | null;
 
   if (!access || access.length === 0) return null;
 
@@ -67,6 +74,6 @@ export async function getServerProfile() {
   return {
     user,
     profile: selfAccess?.profile || access[0]?.profile,
-    familyProfiles: access.map((a) => a.profile).filter(Boolean),
+    familyProfiles: access.map((a) => a.profile).filter(Boolean) as Profile[],
   };
 }
