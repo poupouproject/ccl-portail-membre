@@ -41,7 +41,7 @@ export default function AcademyPage() {
           .from("group_members")
           .select("group_id, groups(level_required)")
           .eq("profile_id", activeProfile.id)
-          .single();
+          .maybeSingle();
 
         const groupMembership = groupMembershipData as unknown as GroupMembershipWithLevel | null;
         const userLevel = groupMembership?.groups?.level_required || 1;

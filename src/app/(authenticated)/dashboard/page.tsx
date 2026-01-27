@@ -35,7 +35,7 @@ export default function DashboardPage() {
           .from("group_members")
           .select("group_id")
           .eq("profile_id", activeProfile.id)
-          .single();
+          .maybeSingle();
 
         const groupMembership = groupMembershipData as GroupMembership | null;
 

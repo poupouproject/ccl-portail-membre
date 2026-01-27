@@ -3,10 +3,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pin, ExternalLink, Tag } from "lucide-react";
+import { Pin, ExternalLink, Tag, Package } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import type { Announcement, Partner } from "@/types/database";
-import Image from "next/image";
+import { OptionalImage } from "@/components/ui/safe-image";
 
 interface AnnouncementsFeedProps {
   announcements: Announcement[];
@@ -82,12 +82,12 @@ function AnnouncementCard({ announcement }: { announcement: Announcement }) {
       </CardHeader>
       <CardContent>
         {announcement.image_url && (
-          <div className="relative w-full h-40 mb-3 rounded-lg overflow-hidden">
-            <Image
+          <div className="relative w-full h-40 mb-3 rounded-lg overflow-hidden bg-muted">
+            <OptionalImage
               src={announcement.image_url}
               alt={announcement.title}
-              fill
-              className="object-cover"
+              className="w-full h-full object-cover"
+              fallback={<div className="w-full h-full bg-muted" />}
             />
           </div>
         )}
@@ -114,16 +114,18 @@ function PartnerCard({ partner }: { partner: Partner }) {
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4">
-          {partner.logo_url && (
-            <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-white flex-shrink-0">
-              <Image
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-white flex-shrink-0 flex items-center justify-center border border-orange-200">
+            {partner.logo_url ? (
+              <OptionalImage
                 src={partner.logo_url}
                 alt={partner.name}
-                fill
-                className="object-contain p-1"
+                className="w-full h-full object-contain p-1"
+                fallback={<Package className="h-8 w-8 text-club-orange/40" />}
               />
-            </div>
-          )}
+            ) : (
+              <Package className="h-8 w-8 text-club-orange/40" />
+            )}
+          </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-sm">{partner.name}</h3>
             {partner.promo_description && (

@@ -48,7 +48,7 @@ export default function TeamPage() {
           .from("group_members")
           .select("group_id, groups(*)")
           .eq("profile_id", activeProfile.id)
-          .single();
+          .maybeSingle();
 
         const membership = membershipData as unknown as GroupMembershipWithGroup | null;
         if (membership?.groups) {

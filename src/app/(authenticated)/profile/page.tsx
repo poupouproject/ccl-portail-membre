@@ -155,12 +155,12 @@ export default function ProfilePage() {
               <CardTitle>
                 {activeProfile?.first_name} {activeProfile?.last_name}
               </CardTitle>
-              <CardDescription className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Badge variant="outline">{activeProfile?.role}</Badge>
                 {activeProfile?.email && (
                   <span className="text-xs">{activeProfile.email}</span>
                 )}
-              </CardDescription>
+              </div>
             </div>
           </div>
         </CardHeader>

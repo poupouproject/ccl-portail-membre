@@ -71,9 +71,9 @@ INSERT INTO public.announcements (title, content, is_pinned, expires_at) VALUES
 
 -- Partenaires de démonstration
 INSERT INTO public.partners (name, logo_url, website_url, promo_code, promo_description, tier, is_active) VALUES
-    ('Cycles Performance', 'https://placehold.co/200x100/FF6600/white?text=Cycles', 'https://cyclesperformance.ca', 'CCL2026', '15% sur les mises au point', 1, true),
-    ('Vélo Plus', 'https://placehold.co/200x100/2196F3/white?text=VeloPlus', 'https://veloplus.ca', 'CLUBLEVIS', '10% sur les accessoires', 2, true),
-    ('Nutrition Sport', 'https://placehold.co/200x100/4CAF50/white?text=NutriSport', 'https://nutrisport.ca', 'CCL10', '10% sur les suppléments', 3, true);
+    ('Cycles Performance', NULL, 'https://cyclesperformance.ca', 'CCL2026', '15% sur les mises au point', 1, true),
+    ('Vélo Plus', NULL, 'https://veloplus.ca', 'CLUBLEVIS', '10% sur les accessoires', 2, true),
+    ('Nutrition Sport', NULL, 'https://nutrisport.ca', 'CCL10', '10% sur les suppléments', 3, true);
 
 -- Vidéos académie de démonstration
 INSERT INTO public.academy_videos (title, description, video_provider, video_id, category, level_min, is_published) VALUES
