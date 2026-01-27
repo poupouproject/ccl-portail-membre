@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ProfileProvider } from "@/hooks/use-profile";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { AppHeader } from "@/components/layout/app-header";
+import { NotificationPrompt } from "@/components/notifications/notification-prompt";
 import type { Database } from "@/types/database";
 
 export default async function AuthenticatedLayout({
@@ -60,6 +61,7 @@ export default async function AuthenticatedLayout({
           {children}
         </main>
         <BottomNav />
+        <NotificationPrompt />
       </div>
     </ProfileProvider>
   );

@@ -34,6 +34,10 @@ export interface Database {
           medical_notes: string | null;
           emergency_contact_name: string | null;
           emergency_contact_phone: string | null;
+          emergency_contact_relation: string | null;
+          address_line1: string | null;
+          address_city: string | null;
+          address_postal_code: string | null;
           birth_date: string | null;
           is_active: boolean;
           created_at: string;
@@ -52,6 +56,10 @@ export interface Database {
           medical_notes?: string | null;
           emergency_contact_name?: string | null;
           emergency_contact_phone?: string | null;
+          emergency_contact_relation?: string | null;
+          address_line1?: string | null;
+          address_city?: string | null;
+          address_postal_code?: string | null;
           birth_date?: string | null;
           is_active?: boolean;
           created_at?: string;
@@ -70,6 +78,10 @@ export interface Database {
           medical_notes?: string | null;
           emergency_contact_name?: string | null;
           emergency_contact_phone?: string | null;
+          emergency_contact_relation?: string | null;
+          address_line1?: string | null;
+          address_city?: string | null;
+          address_postal_code?: string | null;
           birth_date?: string | null;
           is_active?: boolean;
           created_at?: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "@/hooks/use-toast";
@@ -21,10 +21,13 @@ import {
   LogOut,
   Phone,
   AlertCircle,
+  Pencil,
+  Mail,
+  Save,
+  X,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import type { Partner, Profile } from "@/types/database";
-import { useEffect } from "react";
 
 interface ClaimedProfile extends Profile {
   id: string;
@@ -32,10 +35,44 @@ interface ClaimedProfile extends Profile {
 }
 
 export default function ProfilePage() {
-  const { user, activeProfile, profiles, isLoading: profileLoading } = useProfile();
+  const { user, activeProfile, profiles, isLoading: profileLoading, refetch } = useProfile();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [claimCode, setClaimCode] = useState("");
   const [isClaimingProfile, setIsClaimingProfile] = useState(false);
+  
+  // État pour l'édition du profil
+  const [isEditingContact, setIsEditingContact] = useState(false);
+  const [isEditingEmergency, setIsEditingEmergency] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [contactForm, setContactForm] = useState({
+    phone: "",
+    address_line1: "",
+    address_city: "",
+    address_postal_code: "",
+  });
+  
+  const [emergencyForm, setEmergencyForm] = useState({
+    emergency_contact_name: "",
+    emergency_contact_phone: "",
+    emergency_contact_relation: "",
+  });
+
+  useEffect(() => {
+    if (activeProfile) {
+      setContactForm({
+        phone: activeProfile.phone || "",
+        address_line1: activeProfile.address_line1 || "",
+        address_city: activeProfile.address_city || "",
+        address_postal_code: activeProfile.address_postal_code || "",
+      });
+      setEmergencyForm({
+        emergency_contact_name: activeProfile.emergency_contact_name || "",
+        emergency_contact_phone: activeProfile.emergency_contact_phone || "",
+        emergency_contact_relation: activeProfile.emergency_contact_relation || "",
+      });
+    }
+  }, [activeProfile]);
 
   useEffect(() => {
     async function fetchPartners() {
@@ -54,13 +91,67 @@ export default function ProfilePage() {
     fetchPartners();
   }, []);
 
+  async function handleSaveContact() {
+    if (!activeProfile) return;
+    setIsSaving(true);
+    
+    try {
+      const { error } = await (supabase as any)
+        .from("profiles")
+        .update({
+          phone: contactForm.phone || null,
+          address_line1: contactForm.address_line1 || null,
+          address_city: contactForm.address_city || null,
+          address_postal_code: contactForm.address_postal_code || null,
+        })
+        .eq("id", activeProfile.id);
+        
+      if (error) throw error;
+      
+      toast({ title: "Coordonnées mises à jour" });
+      setIsEditingContact(false);
+      refetch?.();
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({ title: "Erreur", description: "Impossible de sauvegarder", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSaveEmergency() {
+    if (!activeProfile) return;
+    setIsSaving(true);
+    
+    try {
+      const { error } = await (supabase as any)
+        .from("profiles")
+        .update({
+          emergency_contact_name: emergencyForm.emergency_contact_name || null,
+          emergency_contact_phone: emergencyForm.emergency_contact_phone || null,
+          emergency_contact_relation: emergencyForm.emergency_contact_relation || null,
+        })
+        .eq("id", activeProfile.id);
+        
+      if (error) throw error;
+      
+      toast({ title: "Contact d'urgence mis à jour" });
+      setIsEditingEmergency(false);
+      refetch?.();
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({ title: "Erreur", description: "Impossible de sauvegarder", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const handleClaimProfile = async () => {
     if (!claimCode.trim() || !user) return;
 
     setIsClaimingProfile(true);
 
     try {
-      // Chercher le profil avec ce code
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
@@ -78,7 +169,6 @@ export default function ProfilePage() {
         return;
       }
 
-      // Créer le lien d'accès
       const { error: accessError } = await (supabase as any).from("user_profile_access").insert({
         user_id: user.id,
         profile_id: profile.id,
@@ -94,7 +184,6 @@ export default function ProfilePage() {
         return;
       }
 
-      // Supprimer le code de réclamation (utilisé une seule fois)
       await (supabase as any)
         .from("profiles")
         .update({ claim_code: null })
@@ -106,7 +195,6 @@ export default function ProfilePage() {
       });
 
       setClaimCode("");
-      // Recharger la page pour voir le nouveau profil
       window.location.reload();
     } catch (error) {
       console.error("Erreur lors de la réclamation:", error);
@@ -164,26 +252,173 @@ export default function ProfilePage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Informations d'urgence */}
-          {activeProfile?.emergency_contact_name && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <h4 className="text-xs font-semibold text-red-700 flex items-center gap-1 mb-2">
-                <AlertCircle className="h-3 w-3" />
-                CONTACT D&apos;URGENCE
-              </h4>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">{activeProfile.emergency_contact_name}</span>
-                {activeProfile.emergency_contact_phone && (
-                  <a
-                    href={`tel:${activeProfile.emergency_contact_phone}`}
-                    className="flex items-center gap-1 text-sm text-red-600"
-                  >
-                    <Phone className="h-4 w-4" />
-                    {activeProfile.emergency_contact_phone}
-                  </a>
-                )}
+      </Card>
+
+      {/* Coordonnées */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Phone className="h-4 w-4" />
+              Coordonnées
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setIsEditingContact(!isEditingContact)}>
+              {isEditingContact ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isEditingContact ? (
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Téléphone</Label>
+                <Input
+                  id="phone"
+                  value={contactForm.phone}
+                  onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                  placeholder="(418) 555-1234"
+                />
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="address">Adresse</Label>
+                <Input
+                  id="address"
+                  value={contactForm.address_line1}
+                  onChange={(e) => setContactForm({ ...contactForm, address_line1: e.target.value })}
+                  placeholder="123 rue Principale"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="city">Ville</Label>
+                  <Input
+                    id="city"
+                    value={contactForm.address_city}
+                    onChange={(e) => setContactForm({ ...contactForm, address_city: e.target.value })}
+                    placeholder="Lévis"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="postal">Code postal</Label>
+                  <Input
+                    id="postal"
+                    value={contactForm.address_postal_code}
+                    onChange={(e) => setContactForm({ ...contactForm, address_postal_code: e.target.value })}
+                    placeholder="G6V 1A1"
+                  />
+                </div>
+              </div>
+              <Button onClick={handleSaveContact} disabled={isSaving} className="w-full">
+                <Save className="h-4 w-4 mr-2" />
+                Sauvegarder
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2 text-sm">
+              {activeProfile?.phone ? (
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <a href={`tel:${activeProfile.phone}`} className="hover:underline">{activeProfile.phone}</a>
+                </div>
+              ) : null}
+              {activeProfile?.email ? (
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span>{activeProfile.email}</span>
+                </div>
+              ) : null}
+              {activeProfile?.address_line1 ? (
+                <div className="text-muted-foreground">
+                  {activeProfile.address_line1}
+                  {activeProfile.address_city && `, ${activeProfile.address_city}`}
+                  {activeProfile.address_postal_code && ` ${activeProfile.address_postal_code}`}
+                </div>
+              ) : null}
+              {!activeProfile?.phone && !activeProfile?.address_line1 && (
+                <p className="text-muted-foreground">Aucune coordonnée enregistrée</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Contact d'urgence */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-4 w-4" />
+              Contact d&apos;urgence
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setIsEditingEmergency(!isEditingEmergency)}>
+              {isEditingEmergency ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isEditingEmergency ? (
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="emergency-name">Nom</Label>
+                <Input
+                  id="emergency-name"
+                  value={emergencyForm.emergency_contact_name}
+                  onChange={(e) => setEmergencyForm({ ...emergencyForm, emergency_contact_name: e.target.value })}
+                  placeholder="Prénom Nom"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="emergency-phone">Téléphone</Label>
+                <Input
+                  id="emergency-phone"
+                  value={emergencyForm.emergency_contact_phone}
+                  onChange={(e) => setEmergencyForm({ ...emergencyForm, emergency_contact_phone: e.target.value })}
+                  placeholder="(418) 555-1234"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="emergency-relation">Relation</Label>
+                <Input
+                  id="emergency-relation"
+                  value={emergencyForm.emergency_contact_relation}
+                  onChange={(e) => setEmergencyForm({ ...emergencyForm, emergency_contact_relation: e.target.value })}
+                  placeholder="Mère, Père, Conjoint(e), etc."
+                />
+              </div>
+              <Button onClick={handleSaveEmergency} disabled={isSaving} className="w-full">
+                <Save className="h-4 w-4 mr-2" />
+                Sauvegarder
+              </Button>
+            </div>
+          ) : (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              {activeProfile?.emergency_contact_name ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">{activeProfile.emergency_contact_name}</span>
+                      {activeProfile.emergency_contact_relation && (
+                        <span className="text-sm text-muted-foreground ml-2">
+                          ({activeProfile.emergency_contact_relation})
+                        </span>
+                      )}
+                    </div>
+                    {activeProfile.emergency_contact_phone && (
+                      <a
+                        href={`tel:${activeProfile.emergency_contact_phone}`}
+                        className="flex items-center gap-1 text-sm text-red-600 font-medium"
+                      >
+                        <Phone className="h-4 w-4" />
+                        {activeProfile.emergency_contact_phone}
+                      </a>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-red-600">
+                  ⚠️ Aucun contact d&apos;urgence défini. Veuillez en ajouter un.
+                </p>
+              )}
             </div>
           )}
         </CardContent>
