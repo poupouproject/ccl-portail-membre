@@ -65,16 +65,16 @@ export function NextEventCard({ event, profileId }: NextEventCardProps) {
     async function fetchAttendance() {
       if (!event || !profileId) return;
 
-      const { data: attendanceData } = await supabase
+      const { data: attendanceData, error } = await supabase
         .from("attendance")
         .select("status")
         .eq("event_id", event.id)
         .eq("profile_id", profileId)
-        .single();
+        .maybeSingle();
 
-      const attendance = attendanceData as AttendanceRecord | null;
-      if (attendance) {
-        setAttendanceStatus(attendance.status);
+      // Ignore errors (RLS ou pas de données) - on reste sur null
+      if (!error && attendanceData) {
+        setAttendanceStatus((attendanceData as AttendanceRecord).status);
       }
     }
 

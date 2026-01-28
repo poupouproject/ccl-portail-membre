@@ -37,6 +37,7 @@ export interface Database {
           phone: string | null;
           avatar_url: string | null;
           role: UserRole;
+          member_category: GroupCategory | null;
           medical_notes: string | null;
           emergency_contact_name: string | null;
           emergency_contact_phone: string | null;
@@ -61,6 +62,7 @@ export interface Database {
           phone?: string | null;
           avatar_url?: string | null;
           role?: UserRole;
+          member_category?: GroupCategory | null;
           medical_notes?: string | null;
           emergency_contact_name?: string | null;
           emergency_contact_phone?: string | null;
@@ -85,6 +87,7 @@ export interface Database {
           phone?: string | null;
           avatar_url?: string | null;
           role?: UserRole;
+          member_category?: GroupCategory | null;
           medical_notes?: string | null;
           emergency_contact_name?: string | null;
           emergency_contact_phone?: string | null;
@@ -136,6 +139,8 @@ export interface Database {
           default_day_of_week: number | null;
           is_active: boolean;
           chat_channel_id: string;
+          season: number | null;
+          internal_notes: string | null;
           created_at: string;
         };
         Insert: {
@@ -148,6 +153,8 @@ export interface Database {
           default_day_of_week?: number | null;
           is_active?: boolean;
           chat_channel_id?: string;
+          season?: number | null;
+          internal_notes?: string | null;
           created_at?: string;
         };
         Update: {
@@ -160,6 +167,8 @@ export interface Database {
           default_day_of_week?: number | null;
           is_active?: boolean;
           chat_channel_id?: string;
+          season?: number | null;
+          internal_notes?: string | null;
           created_at?: string;
         };
       };

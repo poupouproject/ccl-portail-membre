@@ -59,6 +59,7 @@ export default function AdminMembersPage() {
     email: "",
     phone: "",
     role: "athlete" as "athlete" | "coach" | "admin",
+    member_category: "" as "" | "recreational" | "intensive",
     birth_date: "",
     emergency_contact_name: "",
     emergency_contact_phone: "",
@@ -123,6 +124,7 @@ export default function AdminMembersPage() {
         email: formData.email || null,
         phone: formData.phone || null,
         role: formData.role,
+        member_category: formData.member_category || null,
         birth_date: formData.birth_date || null,
         emergency_contact_name: formData.emergency_contact_name || null,
         emergency_contact_phone: formData.emergency_contact_phone || null,
@@ -185,6 +187,7 @@ export default function AdminMembersPage() {
       email: "",
       phone: "",
       role: "athlete",
+      member_category: "",
       birth_date: "",
       emergency_contact_name: "",
       emergency_contact_phone: "",
@@ -200,6 +203,7 @@ export default function AdminMembersPage() {
       email: profile.email || "",
       phone: profile.phone || "",
       role: profile.role,
+      member_category: (profile as any).member_category || "",
       birth_date: profile.birth_date || "",
       emergency_contact_name: profile.emergency_contact_name || "",
       emergency_contact_phone: profile.emergency_contact_phone || "",
@@ -288,6 +292,22 @@ export default function AdminMembersPage() {
                     <SelectItem value="athlete">Athlète</SelectItem>
                     <SelectItem value="coach">Coach</SelectItem>
                     <SelectItem value="admin">Administrateur</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="member_category">Catégorie (abonnement)</Label>
+                <Select
+                  value={formData.member_category}
+                  onValueChange={(value: "" | "recreational" | "intensive") => setFormData({ ...formData, member_category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Non défini" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Non défini</SelectItem>
+                    <SelectItem value="recreational">Récréatif</SelectItem>
+                    <SelectItem value="intensive">Intensif</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

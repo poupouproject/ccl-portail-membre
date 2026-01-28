@@ -26,13 +26,19 @@ interface EventListItemProps {
   isPast?: boolean;
 }
 
+// Helper to get all groups from event
+function getEventGroups(event: EventWithDetails): Group[] {
+  if (event.event_groups && event.event_groups.length > 0) {
+    return event.event_groups.map(eg => eg.groups).filter(Boolean);
+  }
+  if (event.groups) return [event.groups];
+  return [];
+}
+
 // Helper to get the first group from event (handles both old and new structure)
 function getEventGroup(event: EventWithDetails): Group | null {
-  if (event.groups) return event.groups;
-  if (event.event_groups && event.event_groups.length > 0) {
-    return event.event_groups[0].groups;
-  }
-  return null;
+  const groups = getEventGroups(event);
+  return groups.length > 0 ? groups[0] : null;
 }
 
 // Helper to get location info
@@ -49,16 +55,16 @@ export function EventListItem({ event, profileId, isPast = false }: EventListIte
     async function fetchAttendance() {
       if (!profileId) return;
 
-      const { data: attendanceData } = await supabase
+      const { data: attendanceData, error } = await supabase
         .from("attendance")
         .select("status")
         .eq("event_id", event.id)
         .eq("profile_id", profileId)
-        .single();
+        .maybeSingle();
 
-      const attendance = attendanceData as AttendanceRecord | null;
-      if (attendance) {
-        setAttendanceStatus(attendance.status);
+      // Ignore errors (RLS ou pas de données)
+      if (!error && attendanceData) {
+        setAttendanceStatus((attendanceData as AttendanceRecord).status);
       }
     }
 
@@ -91,6 +97,7 @@ export function EventListItem({ event, profileId, isPast = false }: EventListIte
   };
 
   const group = getEventGroup(event);
+  const allGroups = getEventGroups(event);
   const locationName = getLocationName(event);
 
   return (
@@ -116,11 +123,26 @@ export function EventListItem({ event, profileId, isPast = false }: EventListIte
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm truncate">{event.title}</h3>
-                <p className="text-xs text-club-orange font-medium">
-                  {group?.name || (event.is_for_recreational ? "Récréatif" : event.is_for_intensive ? "Intensif" : "Tous")}
-                </p>
+                {allGroups.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {allGroups.map((g) => (
+                      <Badge
+                        key={g.id}
+                        variant="outline"
+                        className="text-xs"
+                        style={{ borderColor: g.color_code, color: g.color_code }}
+                      >
+                        {g.name}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-club-orange font-medium">
+                    {event.is_for_recreational ? "Récréatif" : event.is_for_intensive ? "Intensif" : "Tous"}
+                  </p>
+                )}
               </div>
               {attendanceStatus && (
                 <Badge

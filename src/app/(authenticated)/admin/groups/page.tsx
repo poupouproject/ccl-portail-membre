@@ -80,12 +80,15 @@ export default function AdminGroupsPage() {
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [selectedGroupForStaff, setSelectedGroupForStaff] = useState<GroupWithCounts | null>(null);
   const [filterCategory, setFilterCategory] = useState<GroupCategory | "all">("all");
+  const [filterSeason, setFilterSeason] = useState<number>(new Date().getFullYear());
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     level_required: 1,
     color_code: "#FF6600",
     category: "recreational" as GroupCategory,
+    season: new Date().getFullYear(),
+    internal_notes: "",
     is_active: true,
   });
   const [staffForm, setStaffForm] = useState({
@@ -180,6 +183,8 @@ export default function AdminGroupsPage() {
         level_required: formData.level_required,
         color_code: formData.color_code,
         category: formData.category,
+        season: formData.season,
+        internal_notes: formData.internal_notes.trim() || null,
         is_active: formData.is_active,
       };
 
@@ -245,6 +250,18 @@ export default function AdminGroupsPage() {
     }
   }
 
+  async function handleUpdateStaffRole(staffId: string, newRole: string) {
+    try {
+      const { error } = await (supabase as any).from("group_staff").update({ role: newRole }).eq("id", staffId);
+      if (error) throw error;
+      toast({ title: "Rôle modifié" });
+      fetchData();
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({ title: "Erreur", description: "Impossible de modifier le rôle", variant: "destructive" });
+    }
+  }
+
   async function handleDelete(groupId: string) {
     if (!confirm("Supprimer ce groupe et retirer tous ses membres ?")) return;
     try {
@@ -265,6 +282,8 @@ export default function AdminGroupsPage() {
       level_required: 1,
       color_code: "#FF6600",
       category: "recreational",
+      season: new Date().getFullYear(),
+      internal_notes: "",
       is_active: true,
     });
   }
@@ -277,6 +296,8 @@ export default function AdminGroupsPage() {
       level_required: group.level_required,
       color_code: group.color_code,
       category: group.category || "recreational",
+      season: group.season || new Date().getFullYear(),
+      internal_notes: group.internal_notes || "",
       is_active: group.is_active,
     });
     setIsDialogOpen(true);
@@ -294,11 +315,15 @@ export default function AdminGroupsPage() {
     setIsStaffDialogOpen(true);
   }
 
-  // Filtrer les groupes
-  const filteredGroups =
-    filterCategory === "all"
-      ? groups
-      : groups.filter((g) => g.category === filterCategory);
+  // Filtrer les groupes par catégorie et saison
+  const filteredGroups = groups.filter((g) => {
+    const matchCategory = filterCategory === "all" || g.category === filterCategory;
+    const matchSeason = !filterSeason || g.season === filterSeason || !g.season;
+    return matchCategory && matchSeason;
+  });
+
+  // Saisons disponibles pour le filtre
+  const availableSeasons = [...new Set(groups.map(g => g.season).filter(Boolean) as number[])].sort((a, b) => b - a);
 
   // Statistiques
   const stats = {
@@ -400,8 +425,21 @@ export default function AdminGroupsPage() {
                 />
               </div>
 
-              {/* Niveau et couleur */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Saison, Niveau et couleur */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="season">Saison</Label>
+                  <Input
+                    id="season"
+                    type="number"
+                    min="2020"
+                    max="2050"
+                    value={formData.season}
+                    onChange={(e) =>
+                      setFormData({ ...formData, season: parseInt(e.target.value) || new Date().getFullYear() })
+                    }
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="level">Niveau requis</Label>
                   <Input
@@ -425,13 +463,21 @@ export default function AdminGroupsPage() {
                       onChange={(e) => setFormData({ ...formData, color_code: e.target.value })}
                       className="w-12 h-10 p-1"
                     />
-                    <Input
-                      value={formData.color_code}
-                      onChange={(e) => setFormData({ ...formData, color_code: e.target.value })}
-                      className="flex-1"
-                    />
                   </div>
                 </div>
+              </div>
+
+              {/* Notes internes (visibles par coachs/admin uniquement) */}
+              <div className="space-y-2">
+                <Label htmlFor="internal_notes">Notes internes</Label>
+                <p className="text-xs text-muted-foreground">Visibles uniquement par les coachs et admins</p>
+                <Textarea
+                  id="internal_notes"
+                  value={formData.internal_notes}
+                  onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
+                  placeholder="Notes pour les coachs..."
+                  rows={2}
+                />
               </div>
 
               {/* Statut actif */}
@@ -488,13 +534,25 @@ export default function AdminGroupsPage() {
                               : "?"}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
+                        <div className="flex-1">
                           <div className="text-sm font-medium">
                             {staff.profiles?.first_name} {staff.profiles?.last_name}
                           </div>
-                          <Badge variant="secondary" className="text-xs">
-                            {getStaffRoleLabel(staff.role)}
-                          </Badge>
+                          <Select
+                            value={staff.role}
+                            onValueChange={(v) => handleUpdateStaffRole(staff.id, v)}
+                          >
+                            <SelectTrigger className="h-6 text-xs w-auto">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {STAFF_ROLES.map((role) => (
+                                <SelectItem key={role.value} value={role.value} className="text-xs">
+                                  {role.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                       <Button
@@ -595,13 +653,30 @@ export default function AdminGroupsPage() {
       </div>
 
       {/* Filtres */}
-      <Tabs value={filterCategory} onValueChange={(v) => setFilterCategory(v as GroupCategory | "all")}>
-        <TabsList>
-          <TabsTrigger value="all">Tous ({groups.length})</TabsTrigger>
-          <TabsTrigger value="recreational">Récréatif ({stats.recreational})</TabsTrigger>
-          <TabsTrigger value="intensive">Intensif ({stats.intensive})</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="flex flex-wrap gap-4 items-center">
+        <Tabs value={filterCategory} onValueChange={(v) => setFilterCategory(v as GroupCategory | "all")}>
+          <TabsList>
+            <TabsTrigger value="all">Tous ({groups.length})</TabsTrigger>
+            <TabsTrigger value="recreational">Récréatif ({stats.recreational})</TabsTrigger>
+            <TabsTrigger value="intensive">Intensif ({stats.intensive})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex items-center gap-2">
+          <Label className="text-sm text-muted-foreground">Saison:</Label>
+          <Select value={filterSeason.toString()} onValueChange={(v) => setFilterSeason(parseInt(v))}>
+            <SelectTrigger className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(availableSeasons.length > 0 ? availableSeasons : [new Date().getFullYear()]).map((year) => (
+                <SelectItem key={year} value={year.toString()}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {/* Liste des groupes */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -624,9 +699,16 @@ export default function AdminGroupsPage() {
                     />
                     <CardTitle className="text-base">{group.name}</CardTitle>
                   </div>
-                  <Badge className={`text-xs text-white ${getCategoryBadgeColor(group.category)}`}>
-                    {getCategoryLabel(group.category)}
-                  </Badge>
+                  <div className="flex gap-1">
+                    {group.season && (
+                      <Badge variant="outline" className="text-xs">
+                        {group.season}
+                      </Badge>
+                    )}
+                    <Badge className={`text-xs text-white ${getCategoryBadgeColor(group.category)}`}>
+                      {getCategoryLabel(group.category)}
+                    </Badge>
+                  </div>
                 </div>
                 {group.description && (
                   <CardDescription className="text-sm line-clamp-2">
@@ -651,6 +733,13 @@ export default function AdminGroupsPage() {
                         {staff.profiles?.first_name} ({getStaffRoleLabel(staff.role)})
                       </Badge>
                     ))}
+                  </div>
+                )}
+
+                {/* Notes internes */}
+                {group.internal_notes && (
+                  <div className="text-xs text-muted-foreground italic bg-muted/50 p-2 rounded">
+                    📝 {group.internal_notes}
                   </div>
                 )}
 

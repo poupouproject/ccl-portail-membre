@@ -27,6 +27,14 @@ import {
   X,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Partner, Profile } from "@/types/database";
 
 interface ClaimedProfile extends Profile {
@@ -44,6 +52,14 @@ export default function ProfilePage() {
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [isEditingEmergency, setIsEditingEmergency] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // État pour l'édition des contacts d'urgence des enfants
+  const [childEmergencyDialog, setChildEmergencyDialog] = useState<Profile | null>(null);
+  const [childEmergencyForm, setChildEmergencyForm] = useState({
+    emergency_contact_name: "",
+    emergency_contact_phone: "",
+    emergency_contact_relation: "",
+  });
   
   const [contactForm, setContactForm] = useState({
     phone: "",
@@ -144,6 +160,42 @@ export default function ProfilePage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function handleSaveChildEmergency() {
+    if (!childEmergencyDialog) return;
+    setIsSaving(true);
+    
+    try {
+      const { error } = await (supabase as any)
+        .from("profiles")
+        .update({
+          emergency_contact_name: childEmergencyForm.emergency_contact_name || null,
+          emergency_contact_phone: childEmergencyForm.emergency_contact_phone || null,
+          emergency_contact_relation: childEmergencyForm.emergency_contact_relation || null,
+        })
+        .eq("id", childEmergencyDialog.id);
+        
+      if (error) throw error;
+      
+      toast({ title: "Contact d'urgence mis à jour" });
+      setChildEmergencyDialog(null);
+      refetch?.();
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({ title: "Erreur", description: "Impossible de sauvegarder", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function openChildEmergencyDialog(profile: Profile) {
+    setChildEmergencyForm({
+      emergency_contact_name: profile.emergency_contact_name || "",
+      emergency_contact_phone: profile.emergency_contact_phone || "",
+      emergency_contact_relation: profile.emergency_contact_relation || "",
+    });
+    setChildEmergencyDialog(profile);
   }
 
   const handleClaimProfile = async () => {
@@ -441,24 +493,51 @@ export default function ProfilePage() {
             {profiles.map(({ profile, relation }) => (
               <div
                 key={profile.id}
-                className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                className="p-3 rounded-lg bg-muted/50 space-y-2"
               >
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={profile.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {getInitials(profile.first_name, profile.last_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <span className="text-sm font-medium">
-                      {profile.first_name} {profile.last_name}
-                    </span>
-                    <Badge variant="outline" className="ml-2 text-xs">
-                      {relation === "self" ? "Moi" : relation === "parent" ? "Enfant" : "Tuteur"}
-                    </Badge>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={profile.avatar_url || undefined} />
+                      <AvatarFallback className="text-xs">
+                        {getInitials(profile.first_name, profile.last_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <span className="text-sm font-medium">
+                        {profile.first_name} {profile.last_name}
+                      </span>
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        {relation === "self" ? "Moi" : relation === "parent" ? "Enfant" : "Tuteur"}
+                      </Badge>
+                    </div>
                   </div>
+                  {relation !== "self" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openChildEmergencyDialog(profile)}
+                      className="text-xs"
+                    >
+                      <AlertCircle className="h-3 w-3 mr-1 text-red-600" />
+                      Urgence
+                    </Button>
+                  )}
                 </div>
+                {/* Affichage du contact d'urgence pour les enfants */}
+                {relation !== "self" && profile.emergency_contact_name && (
+                  <div className="text-xs text-muted-foreground ml-10 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 text-red-500" />
+                    {profile.emergency_contact_name}
+                    {profile.emergency_contact_phone && ` - ${profile.emergency_contact_phone}`}
+                  </div>
+                )}
+                {relation !== "self" && !profile.emergency_contact_name && (
+                  <div className="text-xs text-red-600 ml-10 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    ⚠️ Aucun contact d&apos;urgence
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -561,6 +640,59 @@ export default function ProfilePage() {
         <LogOut className="h-4 w-4 mr-2" />
         Déconnexion
       </Button>
+
+      {/* Dialog Contact d'urgence enfant */}
+      <Dialog open={!!childEmergencyDialog} onOpenChange={(open) => !open && setChildEmergencyDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              Contact d&apos;urgence
+            </DialogTitle>
+            <DialogDescription>
+              {childEmergencyDialog?.first_name} {childEmergencyDialog?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="child-emergency-name">Nom du contact</Label>
+              <Input
+                id="child-emergency-name"
+                value={childEmergencyForm.emergency_contact_name}
+                onChange={(e) => setChildEmergencyForm({ ...childEmergencyForm, emergency_contact_name: e.target.value })}
+                placeholder="Prénom Nom"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="child-emergency-phone">Téléphone</Label>
+              <Input
+                id="child-emergency-phone"
+                value={childEmergencyForm.emergency_contact_phone}
+                onChange={(e) => setChildEmergencyForm({ ...childEmergencyForm, emergency_contact_phone: e.target.value })}
+                placeholder="(418) 555-1234"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="child-emergency-relation">Relation</Label>
+              <Input
+                id="child-emergency-relation"
+                value={childEmergencyForm.emergency_contact_relation}
+                onChange={(e) => setChildEmergencyForm({ ...childEmergencyForm, emergency_contact_relation: e.target.value })}
+                placeholder="Mère, Père, Grand-parent, etc."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChildEmergencyDialog(null)}>
+              Annuler
+            </Button>
+            <Button onClick={handleSaveChildEmergency} disabled={isSaving}>
+              <Save className="h-4 w-4 mr-2" />
+              Sauvegarder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
