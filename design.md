@@ -8,11 +8,11 @@
     * L'application **ne gère pas** la performance athlétique (pas de chronos, pas de watts).
     * Le système d'évaluation sert strictement à placer le jeune dans le groupe adapté à son niveau technique pour maximiser son plaisir et sa sécurité.
 * **Approche :** Architecture "Headless" et conception "Mobile-First" pour une expérience utilisateur fluide sur le terrain.
-* **Synchronisation :** Connexion API bidirectionnelle avec l'ERP Odoo pour une synchronisation automatique des membres et de la facturation.
+* **Synchronisation :** Connexion avec Wild Apricot pour l'import initial des membres et la facturation.
 * **Stack Technique :**
-    * **Frontend :** Next.js 14 (App Router) + Tailwind CSS + Shadcn/UI.
+    * **Frontend :** Next.js 15 (App Router) + Tailwind CSS + Shadcn/UI.
     * **Backend Opérationnel :** Supabase (Auth, DB PostgreSQL, Realtime, Storage).
-    * **Backend Administratif :** Odoo (Source de vérité financière et membres).
+    * **Source de données membres :** Wild Apricot (Import via CSV ou API webhook).
     * **Hébergement :** Vercel.
 
 
@@ -21,7 +21,7 @@
 
 ## 2. Les Rôles & Permissions (ACL)
 
-Le système repose sur une table `relationships` dans Supabase pour gérer de manière flexible les structures familiales et les accès.
+Le système repose sur une table `user_profile_access` dans Supabase pour gérer de manière flexible les structures familiales et les accès.
 
 | Rôle | Description & Droits |
 | --- | --- |
@@ -29,6 +29,24 @@ Le système repose sur une table `relationships` dans Supabase pour gérer de ma
 | **Coach** | **Vue "Staff".** Voit ses groupes assignés, prend les présences aux événements, remplit les évaluations techniques des athlètes. *Note : Le rôle actif ("Lead" ou "Assistant") est déterminé dynamiquement selon l'événement.* |
 | **Parent (Tuteur)** | **Vue "Superviseur".** Voit le calendrier unifié de tous ses enfants, gère les statuts de présence (RSVP), accède au portefeuille de codes promos partenaires. A un droit de lecture sur le Chat de groupe de ses enfants. |
 | **Athlète (Autonome)** | **Vue "Participant".** (Généralement 14 ans+). Voit son propre calendrier, participe au Chat de son groupe, consulte sa progression dans l'Académie. |
+
+### Gestion des Relations Parent/Enfant
+
+La table `user_profile_access` gère les relations entre les comptes utilisateurs (Auth) et les profils membres:
+
+| Type de relation | Description |
+| --- | --- |
+| `self` | L'utilisateur est le propriétaire du profil (pour lui-même ou athlète autonome) |
+| `parent` | Le parent a accès au profil de son enfant |
+| `guardian` | Un tuteur ou responsable légal autre que le parent |
+
+**Cas spécial : Compte parent au nom de l'enfant (Wild Apricot)**
+
+Lorsqu'un parent s'inscrit via Wild Apricot avec un compte au nom de son enfant:
+1. Lors de la première connexion, créer un profil pour l'enfant (athlète)
+2. Créer un profil distinct pour le parent (avec relation `parent`)
+3. Lier le compte auth du parent aux deux profils via `user_profile_access`
+4. Le parent peut ensuite basculer entre "Ma vue" et "Vue enfant" via le Profile Switcher
 
 ---
 
@@ -65,7 +83,7 @@ L'application utilise une barre de navigation inférieure (Bottom Nav) persistan
 
 * **Gestion Familiale :** Outil pour lier un nouveau profil d'enfant via un **"Code de Réclamation"** unique, ou pour inviter un enfant à devenir autonome.
 * **Portefeuille Membre :** Carte de membre virtuelle et accès centralisé aux codes rabais et offres exclusives des partenaires du club.
-* **Lien Admin :** Redirection sécurisée vers Odoo pour le paiement de la saison ou la mise à jour des informations administratives.
+* **Lien Admin :** Redirection sécurisée vers Wild Apricot pour le paiement de la saison ou la mise à jour des informations administratives.
 
 ---
 
@@ -75,12 +93,16 @@ Le schéma relationnel est conçu pour offrir une flexibilité maximale dans la 
 
 ### A. Identité & Famille
 
-* **`profiles`** : Table miroir des membres Odoo, contenant l'identité unique et un `claim_code` pour l'activation initiale.
+* **`profiles`** : Table miroir des membres Wild Apricot, contenant l'identité unique et un `claim_code` pour l'activation initiale.
+* **`wild_apricot_members`** : Table de staging contenant les données brutes importées depuis Wild Apricot (Member ID, nom, courriel, niveau).
 * **`user_profile_access`** : Table de liaison gérant les relations complexes entre comptes utilisateurs (Auth) et profils membres (Multi-parents, tuteurs).
+  * Champ `relation` : 'self' (propre profil), 'parent' (accès parent), 'guardian' (tuteur légal)
 
 ### B. Groupes & Staff (Logique de Rotation)
 
 * **`groups`** : Définit les groupes d'entraînement, incluant un `chat_channel_id` unique pour le canal de discussion.
+* **`event_groups`** : Table de liaison permettant à un événement d'appartenir à plusieurs groupes (many-to-many).
+* **`group_members`** : Table de liaison entre profiles et groupes avec le rôle du membre (athlète, coach).
 * **`group_staff` (Règle)** : Définit l'équipe d'encadrement par défaut d'un groupe.
 * **`event_staff` (Exception)** : Permet de surcharger le staff pour un événement spécifique (remplacement, ajout d'assistant).
 * **`v_event_staffing` (Vue SQL)** : Vue combinant la règle et l'exception pour déterminer dynamiquement le staff actif pour chaque événement.
@@ -99,6 +121,21 @@ Le schéma relationnel est conçu pour offrir une flexibilité maximale dans la 
 
 * **`announcements`** : Gestion des nouvelles et messages officiels du club.
 * **`partners`** : Base de données des commanditaires (Logos, liens, codes promos, niveau de visibilité).
+
+### E. Intégration Wild Apricot
+
+Wild Apricot sert de système de gestion principal des adhésions. Le flux d'import suit ces étapes:
+
+1. **Export CSV** : Exporter les membres depuis Wild Apricot par niveau de membership
+2. **Import dans `wild_apricot_members`** : Charger les données brutes (Member ID, nom, courriel, niveau)
+3. **Synchronisation vers `profiles`** : Un trigger `handle_new_user_signup()` lie automatiquement un compte Auth à un profil existant via l'email
+4. **Attribution aux groupes** : Les niveaux Wild Apricot (ex: "Atome B1") sont mappés aux groupes du système
+
+**Workflow d'activation d'un nouveau membre:**
+```
+Wild Apricot → Export CSV → Import DB → Membre se connecte → 
+Trigger auto-link → Profil activé → Accès app complet
+```
 
 ---
 

@@ -6,19 +6,26 @@ import { useProfile } from "@/hooks/use-profile";
 import { NextEventCard } from "@/components/dashboard/next-event-card";
 import { AnnouncementsFeed } from "@/components/dashboard/announcements-feed";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Event, Group, Announcement, Partner } from "@/types/database";
+import type { Event, Group, Announcement, Partner, Location } from "@/types/database";
 
-interface EventWithGroup extends Event {
-  groups: Group;
+interface EventWithDetails extends Event {
+  groups?: Group | null;
+  locations?: Location | null;
+  event_groups?: { group_id: string; groups: Group }[];
 }
 
 interface GroupMembership {
   group_id: string;
+  groups: Group;
+}
+
+interface EventGroupRow {
+  event_id: string;
 }
 
 export default function DashboardPage() {
-  const { activeProfile, isLoading: profileLoading } = useProfile();
-  const [nextEvent, setNextEvent] = useState<EventWithGroup | null>(null);
+  const { activeProfile, isLoading: profileLoading, isCoach } = useProfile();
+  const [nextEvent, setNextEvent] = useState<EventWithDetails | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,28 +37,55 @@ export default function DashboardPage() {
       setIsLoading(true);
 
       try {
-        // Récupérer le groupe de l'athlète
-        const { data: groupMembershipData } = await supabase
+        // Récupérer les groupes de l'athlète
+        const { data: groupMembershipsData } = await supabase
           .from("group_members")
-          .select("group_id")
-          .eq("profile_id", activeProfile.id)
-          .maybeSingle();
+          .select("group_id, groups(*)")
+          .eq("profile_id", activeProfile.id);
 
-        const groupMembership = groupMembershipData as GroupMembership | null;
+        const groupMemberships = groupMembershipsData as GroupMembership[] | null;
 
-        // Récupérer le prochain événement
-        if (groupMembership) {
+        // Récupérer le prochain événement via event_groups
+        if (groupMemberships && groupMemberships.length > 0) {
+          const groupIds = groupMemberships.map((m) => m.group_id);
+          
+          // Chercher les événements liés à ces groupes via event_groups
+          const { data: eventGroupsData } = await supabase
+            .from("event_groups")
+            .select("event_id")
+            .in("group_id", groupIds);
+          
+          if (eventGroupsData && eventGroupsData.length > 0) {
+            const rows = eventGroupsData as EventGroupRow[];
+            const eventIds = [...new Set(rows.map((eg) => eg.event_id))];
+            
+            const { data: eventData } = await supabase
+              .from("events")
+              .select(`*, locations(*), event_groups(group_id, groups(*))`)
+              .in("id", eventIds)
+              .eq("is_cancelled", false)
+              .gte("start_time", new Date().toISOString())
+              .order("start_time", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            if (eventData) {
+              setNextEvent(eventData as unknown as EventWithDetails);
+            }
+          }
+        } else if (isCoach) {
+          // Les coachs voient tous les événements à venir
           const { data: eventData } = await supabase
             .from("events")
-            .select(`*, groups(*)`)
-            .eq("group_id", groupMembership.group_id)
+            .select(`*, locations(*), event_groups(group_id, groups(*))`)
+            .eq("is_cancelled", false)
             .gte("start_time", new Date().toISOString())
             .order("start_time", { ascending: true })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           if (eventData) {
-            setNextEvent(eventData as unknown as EventWithGroup);
+            setNextEvent(eventData as unknown as EventWithDetails);
           }
         }
 

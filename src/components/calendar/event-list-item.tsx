@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Clock, Check, X } from "lucide-react";
 import { formatTime, cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import type { Event, Group } from "@/types/database";
+import type { Event, Group, Location } from "@/types/database";
 
-interface EventWithGroup extends Event {
-  groups: Group;
+interface EventWithDetails extends Event {
+  groups?: Group | null;
+  locations?: Location | null;
+  event_groups?: { group_id: string; groups: Group }[];
 }
 
 interface AttendanceRecord {
@@ -19,9 +21,24 @@ interface AttendanceRecord {
 }
 
 interface EventListItemProps {
-  event: EventWithGroup;
+  event: EventWithDetails;
   profileId?: string;
   isPast?: boolean;
+}
+
+// Helper to get the first group from event (handles both old and new structure)
+function getEventGroup(event: EventWithDetails): Group | null {
+  if (event.groups) return event.groups;
+  if (event.event_groups && event.event_groups.length > 0) {
+    return event.event_groups[0].groups;
+  }
+  return null;
+}
+
+// Helper to get location info
+function getLocationName(event: EventWithDetails): string | null {
+  if (event.locations) return event.locations.name;
+  return event.location_name;
 }
 
 export function EventListItem({ event, profileId, isPast = false }: EventListItemProps) {
@@ -73,11 +90,14 @@ export function EventListItem({ event, profileId, isPast = false }: EventListIte
     setIsUpdating(false);
   };
 
+  const group = getEventGroup(event);
+  const locationName = getLocationName(event);
+
   return (
     <Card className={cn("overflow-hidden", isPast && "opacity-60")}>
       <div
         className="h-1"
-        style={{ backgroundColor: event.groups?.color_code || "#FF6600" }}
+        style={{ backgroundColor: group?.color_code || "#FF6600" }}
       />
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
@@ -99,7 +119,7 @@ export function EventListItem({ event, profileId, isPast = false }: EventListIte
               <div>
                 <h3 className="font-semibold text-sm truncate">{event.title}</h3>
                 <p className="text-xs text-club-orange font-medium">
-                  {event.groups?.name}
+                  {group?.name || (event.is_for_recreational ? "Récréatif" : event.is_for_intensive ? "Intensif" : "Tous")}
                 </p>
               </div>
               {attendanceStatus && (
@@ -117,10 +137,10 @@ export function EventListItem({ event, profileId, isPast = false }: EventListIte
                 <Clock className="h-3 w-3" />
                 {formatTime(event.start_time)}
               </div>
-              {event.location_name && (
+              {locationName && (
                 <div className="flex items-center gap-1 truncate">
                   <MapPin className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{event.location_name}</span>
+                  <span className="truncate">{locationName}</span>
                 </div>
               )}
             </div>

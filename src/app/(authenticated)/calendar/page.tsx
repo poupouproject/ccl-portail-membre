@@ -6,20 +6,26 @@ import { useProfile } from "@/hooks/use-profile";
 import { EventListItem } from "@/components/calendar/event-list-item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Event, Group } from "@/types/database";
+import type { Event, Group, Location } from "@/types/database";
 
-interface EventWithGroup extends Event {
-  groups: Group;
+interface EventWithDetails extends Event {
+  groups?: Group | null;
+  locations?: Location | null;
+  event_groups?: { group_id: string; groups: Group }[];
 }
 
 interface GroupMembership {
   group_id: string;
 }
 
+interface EventGroupRow {
+  event_id: string;
+}
+
 export default function CalendarPage() {
-  const { activeProfile, isLoading: profileLoading } = useProfile();
-  const [upcomingEvents, setUpcomingEvents] = useState<EventWithGroup[]>([]);
-  const [pastEvents, setPastEvents] = useState<EventWithGroup[]>([]);
+  const { activeProfile, isLoading: profileLoading, isCoach } = useProfile();
+  const [upcomingEvents, setUpcomingEvents] = useState<EventWithDetails[]>([]);
+  const [pastEvents, setPastEvents] = useState<EventWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -36,39 +42,76 @@ export default function CalendarPage() {
           .eq("profile_id", activeProfile.id);
 
         const groupMemberships = groupMembershipsData as GroupMembership[] | null;
+        const now = new Date().toISOString();
 
-        if (!groupMemberships || groupMemberships.length === 0) {
+        // Si l'utilisateur n'a pas de groupe mais est coach, montrer tous les événements
+        if ((!groupMemberships || groupMemberships.length === 0) && !isCoach) {
           setIsLoading(false);
           return;
         }
 
-        const groupIds = groupMemberships.map((m) => m.group_id);
-        const now = new Date().toISOString();
+        let eventIds: string[] = [];
+        
+        if (groupMemberships && groupMemberships.length > 0) {
+          const groupIds = groupMemberships.map((m) => m.group_id);
+          
+          // Chercher les événements liés à ces groupes via event_groups
+          const { data: eventGroupsData } = await supabase
+            .from("event_groups")
+            .select("event_id")
+            .in("group_id", groupIds);
+          
+          if (eventGroupsData) {
+            const rows = eventGroupsData as EventGroupRow[];
+            eventIds = [...new Set(rows.map((eg) => eg.event_id))];
+          }
+        }
 
         // Événements à venir
-        const { data: upcoming } = await supabase
+        let upcomingQuery = supabase
           .from("events")
-          .select(`*, groups(*)`)
-          .in("group_id", groupIds)
+          .select(`*, locations(*), event_groups(group_id, groups(*))`)
+          .eq("is_cancelled", false)
           .gte("start_time", now)
           .order("start_time", { ascending: true })
           .limit(20);
 
+        // Si pas coach, filtrer par les event_ids
+        if (!isCoach && eventIds.length > 0) {
+          upcomingQuery = upcomingQuery.in("id", eventIds);
+        } else if (!isCoach && eventIds.length === 0) {
+          setUpcomingEvents([]);
+          setPastEvents([]);
+          setIsLoading(false);
+          return;
+        }
+
+        const { data: upcoming } = await upcomingQuery;
+
         if (upcoming) {
-          setUpcomingEvents(upcoming as unknown as EventWithGroup[]);
+          setUpcomingEvents(upcoming as unknown as EventWithDetails[]);
         }
 
         // Événements passés
-        const { data: past } = await supabase
+        let pastQuery = supabase
           .from("events")
-          .select(`*, groups(*)`)
-          .in("group_id", groupIds)
+          .select(`*, locations(*), event_groups(group_id, groups(*))`)
           .lt("start_time", now)
           .order("start_time", { ascending: false })
           .limit(10);
 
+        if (!isCoach && eventIds.length > 0) {
+          pastQuery = pastQuery.in("id", eventIds);
+        } else if (!isCoach && eventIds.length === 0) {
+          setPastEvents([]);
+          setIsLoading(false);
+          return;
+        }
+
+        const { data: past } = await pastQuery;
+
         if (past) {
-          setPastEvents(past as unknown as EventWithGroup[]);
+          setPastEvents(past as unknown as EventWithDetails[]);
         }
       } catch (error) {
         console.error("Erreur lors du chargement des événements:", error);

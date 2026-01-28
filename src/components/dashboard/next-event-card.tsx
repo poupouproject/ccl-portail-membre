@@ -9,10 +9,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MapPin, Clock, Check, X } from "lucide-react";
 import { formatDate, formatTime, getInitials, getStaffRoleLabel, getStaffRoleBadgeColor } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import type { Event, Group, EventStaffing } from "@/types/database";
+import type { Event, Group, EventStaffing, Location } from "@/types/database";
 
-interface EventWithGroup extends Event {
-  groups: Group;
+interface EventWithDetails extends Event {
+  groups?: Group | null;
+  locations?: Location | null;
+  event_groups?: { group_id: string; groups: Group }[];
 }
 
 interface AttendanceRecord {
@@ -20,8 +22,25 @@ interface AttendanceRecord {
 }
 
 interface NextEventCardProps {
-  event: EventWithGroup | null;
+  event: EventWithDetails | null;
   profileId?: string;
+}
+
+// Helper to get the first group from event (handles both old and new structure)
+function getEventGroup(event: EventWithDetails): Group | null {
+  if (event.groups) return event.groups;
+  if (event.event_groups && event.event_groups.length > 0) {
+    return event.event_groups[0].groups;
+  }
+  return null;
+}
+
+// Helper to get location info
+function getLocationInfo(event: EventWithDetails): { name: string | null; url: string | null } {
+  if (event.locations) {
+    return { name: event.locations.name, url: event.locations.google_maps_url };
+  }
+  return { name: event.location_name, url: event.location_url };
 }
 
 export function NextEventCard({ event, profileId }: NextEventCardProps) {
@@ -105,18 +124,20 @@ export function NextEventCard({ event, profileId }: NextEventCardProps) {
   }
 
   const leadCoach = staffing.find((s) => s.active_role === "head_coach");
+  const group = getEventGroup(event);
+  const location = getLocationInfo(event);
 
   return (
     <Card className="overflow-hidden">
       <div
         className="h-2"
-        style={{ backgroundColor: event.groups?.color_code || "#FF6600" }}
+        style={{ backgroundColor: group?.color_code || "#FF6600" }}
       />
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div>
             <CardDescription className="text-club-orange font-medium">
-              {event.groups?.name}
+              {group?.name || (event.is_for_recreational ? "Récréatif" : event.is_for_intensive ? "Intensif" : "Tous")}
             </CardDescription>
             <CardTitle className="text-lg">{event.title}</CardTitle>
           </div>
@@ -141,20 +162,20 @@ export function NextEventCard({ event, profileId }: NextEventCardProps) {
         </div>
 
         {/* Lieu */}
-        {event.location_name && (
+        {location.name && (
           <div className="flex items-center gap-1.5 text-sm">
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            {event.location_url ? (
+            {location.url ? (
               <a
-                href={event.location_url}
+                href={location.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-club-orange hover:underline"
               >
-                {event.location_name}
+                {location.name}
               </a>
             ) : (
-              <span>{event.location_name}</span>
+              <span>{location.name}</span>
             )}
           </div>
         )}
