@@ -26,9 +26,11 @@ CREATE INDEX IF NOT EXISTS idx_group_staff_profile_id ON public.group_staff(prof
 ALTER TABLE public.group_staff ENABLE ROW LEVEL SECURITY;
 
 -- Politique: tout le monde peut lire
+DROP POLICY IF EXISTS "Public read group staff" ON public.group_staff;
 CREATE POLICY "Public read group staff" ON public.group_staff FOR SELECT USING (true);
 
 -- Politique: seuls les admins peuvent gérer
+DROP POLICY IF EXISTS "Admin manage group staff" ON public.group_staff;
 CREATE POLICY "Admin manage group staff" ON public.group_staff 
 FOR ALL USING (
     EXISTS (
