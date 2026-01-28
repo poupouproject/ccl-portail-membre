@@ -130,7 +130,14 @@ export default function AdminGroupsPage() {
                 role,
                 profiles(id, first_name, last_name)
               `)
-              .eq("group_id", group.id),
+              .eq("group_id", group.id)
+              .then(res => {
+                // Gérer le cas où la table n'existe pas encore
+                if (res.error && res.error.code === '42P01') {
+                  return { data: [], error: null };
+                }
+                return res;
+              }),
           ]);
 
           return {
