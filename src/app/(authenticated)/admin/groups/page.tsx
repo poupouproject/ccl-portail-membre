@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -29,46 +31,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users,
   Plus,
   Pencil,
   Trash2,
   ArrowLeft,
-  Eye,
+  UserPlus,
+  X,
 } from "lucide-react";
-import type { Group, GroupCategory } from "@/types/database";
-import { getCategoryLabel, getCategoryBadgeColor, getDayName } from "@/lib/utils";
-import Link from "next/link";
+import type { Group, GroupCategory, Profile } from "@/types/database";
+import { getCategoryLabel, getCategoryBadgeColor, getInitials, getStaffRoleLabel } from "@/lib/utils";
 
 interface GroupWithCounts extends Group {
   memberCount?: number;
   staffCount?: number;
+  staff?: GroupStaff[];
 }
 
-const CATEGORY_OPTIONS: { value: GroupCategory; label: string }[] = [
-  { value: "recreational", label: "Récréatif" },
-  { value: "intensive", label: "Intensif" },
+interface GroupStaff {
+  id: string;
+  group_id: string;
+  profile_id: string;
+  role: string;
+  profiles?: Profile;
+}
+
+const CATEGORY_OPTIONS: { value: GroupCategory; label: string; description: string }[] = [
+  { value: "recreational", label: "Récréatif", description: "Sortie le lundi seulement" },
+  { value: "intensive", label: "Intensif", description: "Sorties lundi ET mercredi" },
 ];
 
-const DAY_OPTIONS = [
-  { value: 1, label: "Lundi" },
-  { value: 2, label: "Mardi" },
-  { value: 3, label: "Mercredi" },
-  { value: 4, label: "Jeudi" },
-  { value: 5, label: "Vendredi" },
-  { value: 6, label: "Samedi" },
-  { value: 0, label: "Dimanche" },
+const STAFF_ROLES = [
+  { value: "head_coach", label: "Coach Lead" },
+  { value: "assistant", label: "Assistant" },
+  { value: "sweeper", label: "Serre-file" },
 ];
 
 export default function AdminGroupsPage() {
   const router = useRouter();
   const { isLoading: profileLoading, isAdmin } = useProfile();
   const [groups, setGroups] = useState<GroupWithCounts[]>([]);
+  const [coaches, setCoaches] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isStaffDialogOpen, setIsStaffDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [selectedGroupForStaff, setSelectedGroupForStaff] = useState<GroupWithCounts | null>(null);
   const [filterCategory, setFilterCategory] = useState<GroupCategory | "all">("all");
   const [formData, setFormData] = useState({
     name: "",
@@ -76,8 +86,11 @@ export default function AdminGroupsPage() {
     level_required: 1,
     color_code: "#FF6600",
     category: "recreational" as GroupCategory,
-    default_day_of_week: 1,
     is_active: true,
+  });
+  const [staffForm, setStaffForm] = useState({
+    profile_id: "",
+    role: "assistant",
   });
 
   useEffect(() => {
@@ -85,12 +98,13 @@ export default function AdminGroupsPage() {
       router.push("/dashboard");
       return;
     }
-    fetchGroups();
+    fetchData();
   }, [profileLoading, isAdmin, router]);
 
-  async function fetchGroups() {
+  async function fetchData() {
     setIsLoading(true);
     try {
+      // Récupérer les groupes avec le staff
       const { data: groupsData, error } = await supabase
         .from("groups")
         .select("*")
@@ -99,31 +113,48 @@ export default function AdminGroupsPage() {
 
       if (error) throw error;
 
-      // Récupérer les counts
+      // Récupérer les counts et le staff pour chaque groupe
       const groupsWithCounts: GroupWithCounts[] = await Promise.all(
         ((groupsData || []) as Group[]).map(async (group) => {
-          const { count: memberCount } = await supabase
-            .from("group_members")
-            .select("*", { count: "exact", head: true })
-            .eq("group_id", group.id);
-
-          const { count: staffCount } = await supabase
-            .from("group_staff")
-            .select("*", { count: "exact", head: true })
-            .eq("group_id", group.id);
+          const [memberRes, staffRes] = await Promise.all([
+            supabase
+              .from("group_members")
+              .select("*", { count: "exact", head: true })
+              .eq("group_id", group.id),
+            supabase
+              .from("group_staff")
+              .select(`
+                id,
+                group_id,
+                profile_id,
+                role,
+                profiles(id, first_name, last_name)
+              `)
+              .eq("group_id", group.id),
+          ]);
 
           return {
             ...group,
-            memberCount: memberCount || 0,
-            staffCount: staffCount || 0,
+            memberCount: memberRes.count || 0,
+            staffCount: staffRes.data?.length || 0,
+            staff: (staffRes.data || []) as unknown as GroupStaff[],
           };
         })
       );
 
       setGroups(groupsWithCounts);
+
+      // Récupérer tous les coaches/admins pour l'assignation
+      const { data: coachesData } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("role", ["admin", "coach"])
+        .order("first_name");
+
+      setCoaches((coachesData as Profile[]) || []);
     } catch (error) {
       console.error("Erreur:", error);
-      toast({ title: "Erreur", description: "Impossible de charger les groupes", variant: "destructive" });
+      toast({ title: "Erreur", description: "Impossible de charger les données", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -142,7 +173,6 @@ export default function AdminGroupsPage() {
         level_required: formData.level_required,
         color_code: formData.color_code,
         category: formData.category,
-        default_day_of_week: formData.default_day_of_week,
         is_active: formData.is_active,
       };
 
@@ -159,10 +189,52 @@ export default function AdminGroupsPage() {
       setIsDialogOpen(false);
       setEditingGroup(null);
       resetForm();
-      fetchGroups();
+      fetchData();
     } catch (error) {
       console.error("Erreur:", error);
       toast({ title: "Erreur", description: "Impossible de sauvegarder", variant: "destructive" });
+    }
+  }
+
+  async function handleAddStaff() {
+    if (!selectedGroupForStaff || !staffForm.profile_id) {
+      toast({ title: "Erreur", description: "Sélectionnez un coach", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const { error } = await (supabase as any).from("group_staff").insert({
+        group_id: selectedGroupForStaff.id,
+        profile_id: staffForm.profile_id,
+        role: staffForm.role,
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          toast({ title: "Erreur", description: "Ce coach est déjà assigné à ce groupe", variant: "destructive" });
+          return;
+        }
+        throw error;
+      }
+
+      toast({ title: "Coach assigné" });
+      setStaffForm({ profile_id: "", role: "assistant" });
+      fetchData();
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({ title: "Erreur", description: "Impossible d'assigner", variant: "destructive" });
+    }
+  }
+
+  async function handleRemoveStaff(staffId: string) {
+    try {
+      const { error } = await supabase.from("group_staff").delete().eq("id", staffId);
+      if (error) throw error;
+      toast({ title: "Coach retiré" });
+      fetchData();
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({ title: "Erreur", description: "Impossible de retirer", variant: "destructive" });
     }
   }
 
@@ -172,7 +244,7 @@ export default function AdminGroupsPage() {
       const { error } = await supabase.from("groups").delete().eq("id", groupId);
       if (error) throw error;
       toast({ title: "Groupe supprimé" });
-      fetchGroups();
+      fetchData();
     } catch (error) {
       console.error("Erreur:", error);
       toast({ title: "Erreur", description: "Impossible de supprimer", variant: "destructive" });
@@ -186,7 +258,6 @@ export default function AdminGroupsPage() {
       level_required: 1,
       color_code: "#FF6600",
       category: "recreational",
-      default_day_of_week: 1,
       is_active: true,
     });
   }
@@ -199,7 +270,6 @@ export default function AdminGroupsPage() {
       level_required: group.level_required,
       color_code: group.color_code,
       category: group.category || "recreational",
-      default_day_of_week: group.default_day_of_week || 1,
       is_active: group.is_active,
     });
     setIsDialogOpen(true);
@@ -209,6 +279,12 @@ export default function AdminGroupsPage() {
     setEditingGroup(null);
     resetForm();
     setIsDialogOpen(true);
+  }
+
+  function openStaffDialog(group: GroupWithCounts) {
+    setSelectedGroupForStaff(group);
+    setStaffForm({ profile_id: "", role: "assistant" });
+    setIsStaffDialogOpen(true);
   }
 
   // Filtrer les groupes
@@ -229,7 +305,7 @@ export default function AdminGroupsPage() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-48" />
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Skeleton className="h-20" />
           <Skeleton className="h-20" />
           <Skeleton className="h-20" />
@@ -251,7 +327,7 @@ export default function AdminGroupsPage() {
           <div>
             <h1 className="text-2xl font-bold">Gestion des groupes</h1>
             <p className="text-sm text-muted-foreground">
-              Configurez les groupes et leurs catégories
+              Configurez les groupes et assignez les coachs
             </p>
           </div>
         </div>
@@ -286,46 +362,23 @@ export default function AdminGroupsPage() {
               {/* Catégorie */}
               <div className="space-y-2">
                 <Label>Catégorie *</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(v) => setFormData({ ...formData, category: v as GroupCategory })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {formData.category === "recreational"
-                    ? "Sortie le lundi (récréatif + intensif)"
-                    : "Sorties le lundi ET mercredi"}
-                </p>
-              </div>
-
-              {/* Jour par défaut */}
-              <div className="space-y-2">
-                <Label>Jour de sortie principal</Label>
-                <Select
-                  value={String(formData.default_day_of_week)}
-                  onValueChange={(v) => setFormData({ ...formData, default_day_of_week: parseInt(v) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DAY_OPTIONS.map((day) => (
-                      <SelectItem key={day.value} value={String(day.value)}>
-                        {day.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  {CATEGORY_OPTIONS.map((cat) => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, category: cat.value })}
+                      className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                        formData.category === cat.value
+                          ? "border-club-orange bg-club-orange/10"
+                          : "border-border hover:border-club-orange/50"
+                      }`}
+                    >
+                      <div className="font-medium">{cat.label}</div>
+                      <div className="text-xs text-muted-foreground">{cat.description}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Description */}
@@ -399,6 +452,112 @@ export default function AdminGroupsPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Dialog Gestion Staff */}
+      <Dialog open={isStaffDialogOpen} onOpenChange={setIsStaffDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gérer les coachs</DialogTitle>
+            <DialogDescription>
+              {selectedGroupForStaff?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Staff actuel */}
+            <div className="space-y-2">
+              <Label>Coachs assignés</Label>
+              {selectedGroupForStaff?.staff && selectedGroupForStaff.staff.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedGroupForStaff.staff.map((staff) => (
+                    <div
+                      key={staff.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-muted"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">
+                            {staff.profiles
+                              ? getInitials(staff.profiles.first_name, staff.profiles.last_name)
+                              : "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="text-sm font-medium">
+                            {staff.profiles?.first_name} {staff.profiles?.last_name}
+                          </div>
+                          <Badge variant="secondary" className="text-xs">
+                            {getStaffRoleLabel(staff.role)}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveStaff(staff.id)}
+                        className="h-8 w-8 text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Aucun coach assigné</p>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Ajouter un coach */}
+            <div className="space-y-3">
+              <Label>Ajouter un coach</Label>
+              <Select
+                value={staffForm.profile_id}
+                onValueChange={(v) => setStaffForm({ ...staffForm, profile_id: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un coach..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {coaches
+                    .filter(
+                      (c) =>
+                        !selectedGroupForStaff?.staff?.some((s) => s.profile_id === c.id)
+                    )
+                    .map((coach) => (
+                      <SelectItem key={coach.id} value={coach.id}>
+                        {coach.first_name} {coach.last_name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={staffForm.role}
+                onValueChange={(v) => setStaffForm({ ...staffForm, role: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STAFF_ROLES.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={handleAddStaff}
+                className="w-full bg-club-orange hover:bg-club-orange/90"
+                disabled={!staffForm.profile_id}
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Ajouter
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Statistiques */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -474,12 +633,17 @@ export default function AdminGroupsPage() {
                     <Users className="h-4 w-4" />
                     {group.memberCount || 0} membres
                   </div>
-                  <div>{group.staffCount || 0} staff</div>
+                  <div>{group.staffCount || 0} coachs</div>
                 </div>
 
-                {group.default_day_of_week !== null && (
-                  <div className="text-xs text-muted-foreground">
-                    Jour: {getDayName(group.default_day_of_week)}
+                {/* Liste des coachs */}
+                {group.staff && group.staff.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {group.staff.map((staff) => (
+                      <Badge key={staff.id} variant="outline" className="text-xs">
+                        {staff.profiles?.first_name} ({getStaffRoleLabel(staff.role)})
+                      </Badge>
+                    ))}
                   </div>
                 )}
 
@@ -490,11 +654,14 @@ export default function AdminGroupsPage() {
                 )}
 
                 <div className="flex gap-2 pt-2 border-t">
-                  <Button variant="outline" size="sm" className="flex-1" asChild>
-                    <Link href={`/admin/groups/${group.id}`}>
-                      <Eye className="h-3 w-3 mr-1" />
-                      Voir
-                    </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => openStaffDialog(group)}
+                  >
+                    <UserPlus className="h-3 w-3 mr-1" />
+                    Coachs
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => openEditDialog(group)}>
                     <Pencil className="h-3 w-3" />
