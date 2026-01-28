@@ -1,172 +1,150 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Send, Users, Megaphone } from "lucide-react";
-import { getInitials, formatDate } from "@/lib/utils";
-import type { Group, Profile } from "@/types/database";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Send, Pin, AlertTriangle, Filter } from "lucide-react";
+import {
+  getInitials,
+  formatRelativeTime,
+  getChannelLabel,
+  getChannelBadgeColor,
+} from "@/lib/utils";
+import type { ChatMessage, Profile, ChatChannelType } from "@/types/database";
 
-interface GroupMessage {
-  id: string;
-  group_id: string;
-  sender_profile_id: string;
-  content: string;
-  message_type: string;
-  is_pinned: boolean;
-  created_at: string;
-  sender?: Profile;
+interface ChatMessageWithAuthor extends ChatMessage {
+  author: Profile;
 }
 
+const CHANNEL_OPTIONS: { value: ChatChannelType; label: string; color: string }[] = [
+  { value: "all", label: "Tous", color: "bg-slate-500" },
+  { value: "recreational", label: "Récréatif", color: "bg-green-500" },
+  { value: "intensive", label: "Intensif", color: "bg-blue-600" },
+  { value: "staff", label: "Staff", color: "bg-purple-600" },
+];
+
 export default function TeamPage() {
-  const { activeProfile, isLoading: profileLoading, isCoach } = useProfile();
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
-  const [messages, setMessages] = useState<GroupMessage[]>([]);
+  const { user, activeProfile, isLoading: profileLoading, isCoach } = useProfile();
+  const [messages, setMessages] = useState<ChatMessageWithAuthor[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [selectedChannel, setSelectedChannel] = useState<ChatChannelType>("all");
+  const [filterChannel, setFilterChannel] = useState<ChatChannelType | "none">("none");
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!activeProfile) return;
-    fetchGroups();
-  }, [activeProfile, isCoach]);
+  const fetchMessages = useCallback(async () => {
+    if (!user) return;
 
-  useEffect(() => {
-    if (selectedGroup) {
-      fetchMessages(selectedGroup.id);
-      
-      // Realtime subscription
-      const channel = supabase
-        .channel(`group-${selectedGroup.id}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "group_messages", filter: `group_id=eq.${selectedGroup.id}` },
-          (payload) => {
-            fetchSingleMessage(payload.new.id);
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [selectedGroup]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }
-
-  async function fetchGroups() {
     setIsLoading(true);
     try {
-      let fetchedGroups: Group[] = [];
-      
-      if (isCoach) {
-        // Admin voit tous les groupes
-        if (activeProfile?.role === "admin") {
-          const { data } = await supabase.from("groups").select("*").order("name");
-          fetchedGroups = data || [];
-        } else {
-          // Coaches voient les groupes où ils sont staff
-          const { data: staffGroups } = await supabase
-            .from("group_staff")
-            .select("group_id, groups(*)")
-            .eq("profile_id", activeProfile!.id);
-          fetchedGroups = staffGroups?.map((s: { groups: Group | null }) => s.groups).filter(Boolean) as Group[] || [];
-        }
-      } else {
-        // Athlètes voient leur groupe
-        const { data: memberData } = await supabase
-          .from("group_members")
-          .select("group_id, groups(*)")
-          .eq("profile_id", activeProfile!.id);
-        fetchedGroups = memberData?.map((m: { groups: Group | null }) => m.groups).filter(Boolean) as Group[] || [];
-      }
-
-      setGroups(fetchedGroups);
-      if (fetchedGroups.length > 0 && !selectedGroup) {
-        setSelectedGroup(fetchedGroups[0]);
-      }
-    } catch (error) {
-      console.error("Erreur:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function fetchMessages(groupId: string) {
-    try {
-      const { data, error } = await (supabase as any)
-        .from("group_messages")
-        .select("*")
-        .eq("group_id", groupId)
+      const { data, error } = await supabase
+        .from("chat_messages")
+        .select(`
+          *,
+          author:profiles!chat_messages_author_id_fkey(*)
+        `)
         .order("created_at", { ascending: true })
         .limit(100);
 
-      if (error) throw error;
-
-      const senderIds = [...new Set((data || []).map((m: GroupMessage) => m.sender_profile_id).filter(Boolean))] as string[];
-      if (senderIds.length > 0) {
-        const { data: profiles } = await (supabase as any)
-          .from("profiles")
-          .select("id, first_name, last_name, avatar_url, role")
-          .in("id", senderIds);
-
-        const profileMap = new Map((profiles || []).map((p: Profile) => [p.id, p]));
-        setMessages((data || []).map((m: GroupMessage) => ({ ...m, sender: profileMap.get(m.sender_profile_id) })));
-      } else {
-        setMessages(data || []);
+      if (error) {
+        console.error("Erreur:", error);
+        return;
       }
-    } catch (error) {
-      console.error("Erreur:", error);
-    }
-  }
 
-  async function fetchSingleMessage(id: string) {
-    const { data } = await (supabase as any).from("group_messages").select("*").eq("id", id).single();
-    if (data) {
-      const { data: profile } = await (supabase as any)
-        .from("profiles")
-        .select("id, first_name, last_name, avatar_url, role")
-        .eq("id", data.sender_profile_id)
-        .single();
-      setMessages((prev) => [...prev, { ...data, sender: profile }]);
+      setMessages((data as ChatMessageWithAuthor[]) || []);
+    } catch (err) {
+      console.error("Exception:", err);
+    } finally {
+      setIsLoading(false);
     }
-  }
+  }, [user]);
 
-  async function handleSend() {
-    if (!newMessage.trim() || !activeProfile || !selectedGroup) return;
+  useEffect(() => {
+    fetchMessages();
+
+    // Abonnement realtime
+    const channel = supabase
+      .channel("chat-messages")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages" },
+        async (payload) => {
+          // Récupérer le message avec l'auteur
+          const { data } = await supabase
+            .from("chat_messages")
+            .select(`*, author:profiles!chat_messages_author_id_fkey(*)`)
+            .eq("id", payload.new.id)
+            .single();
+
+          if (data) {
+            setMessages((prev) => [...prev, data as ChatMessageWithAuthor]);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchMessages]);
+
+  useEffect(() => {
+    // Auto-scroll vers le bas
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function handleSendMessage() {
+    if (!newMessage.trim() || !activeProfile || isSending) return;
+
     setIsSending(true);
     try {
-      const { error } = await (supabase as any).from("group_messages").insert({
-        group_id: selectedGroup.id,
-        sender_profile_id: activeProfile.id,
+      const { error } = await (supabase as any).from("chat_messages").insert({
+        author_id: activeProfile.id,
+        channel: selectedChannel,
         content: newMessage.trim(),
-        message_type: "message",
       });
-      if (error) throw error;
+
+      if (error) {
+        console.error("Erreur envoi:", error);
+        return;
+      }
+
       setNewMessage("");
-    } catch (error) {
-      console.error("Erreur:", error);
+    } catch (err) {
+      console.error("Exception:", err);
     } finally {
       setIsSending(false);
     }
   }
 
-  if (profileLoading || isLoading) {
+  // Filtrer les messages
+  const filteredMessages =
+    filterChannel === "none"
+      ? messages
+      : messages.filter((m) => m.channel === filterChannel);
+
+  // Canaux disponibles pour l'écriture
+  const availableChannels = isCoach
+    ? CHANNEL_OPTIONS
+    : CHANNEL_OPTIONS.filter((c) => c.value !== "staff");
+
+  if (profileLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-full" />
@@ -176,118 +154,187 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-180px)]">
-      <h1 className="text-2xl font-bold mb-4">
-        <Users className="inline h-6 w-6 mr-2" />
-        Mon Équipe
-      </h1>
+    <div className="space-y-4 h-[calc(100vh-180px)] lg:h-[calc(100vh-120px)] flex flex-col">
+      {/* En-tête */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-2xl font-bold">Communications</h1>
 
-      {groups.length > 1 && (
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          {groups.map((group) => (
-            <Button
-              key={group.id}
-              variant={selectedGroup?.id === group.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedGroup(group)}
-              style={{
-                backgroundColor: selectedGroup?.id === group.id ? group.color_code : undefined,
-                borderColor: group.color_code,
-              }}
-            >
-              {group.name}
-            </Button>
-          ))}
+        {/* Filtre */}
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select
+            value={filterChannel}
+            onValueChange={(v) => setFilterChannel(v as ChatChannelType | "none")}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Filtrer..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Tous les canaux</SelectItem>
+              {CHANNEL_OPTIONS.map((channel) => (
+                <SelectItem key={channel.value} value={channel.value}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${channel.color}`} />
+                    {channel.label}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      )}
+      </div>
 
-      {groups.length === 0 ? (
-        <Card className="flex-1">
-          <CardContent className="py-8 text-center text-muted-foreground">
-            Vous n&apos;êtes assigné à aucun groupe pour le moment.
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="flex-1 flex flex-col overflow-hidden">
-          {selectedGroup && (
-            <CardHeader className="py-3 border-b" style={{ backgroundColor: `${selectedGroup.color_code}10` }}>
-              <CardTitle className="text-base flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedGroup.color_code }} />
-                {selectedGroup.name}
-                {isCoach && <Badge variant="secondary" className="ml-2">Coach</Badge>}
-              </CardTitle>
-            </CardHeader>
-          )}
-
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                Aucun message dans ce groupe. {isCoach && "Envoyez le premier message !"}
+      {/* Zone des messages */}
+      <Card className="flex-1 flex flex-col overflow-hidden">
+        <ScrollArea className="flex-1 p-4">
+          <div className="space-y-4">
+            {isLoading ? (
+              <>
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : filteredMessages.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <p>Aucun message</p>
+                <p className="text-sm mt-1">
+                  Soyez le premier à envoyer un message !
+                </p>
               </div>
             ) : (
-              messages.map((message) => {
-                const isOwnMessage = message.sender_profile_id === activeProfile?.id;
-                const isAnnouncement = message.message_type === "announcement";
+              filteredMessages.map((message) => {
+                const isOwn = message.author_id === activeProfile?.id;
+
                 return (
-                  <div key={message.id}>
-                    {isAnnouncement ? (
-                      <div className="bg-club-orange/10 border border-club-orange/20 rounded-lg p-3 text-center">
-                        <div className="flex items-center justify-center gap-2 text-club-orange text-xs font-medium mb-1">
-                          <Megaphone className="h-3 w-3" />
-                          ANNONCE
-                        </div>
-                        <p className="text-sm font-medium">{message.content}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {message.sender?.first_name} · {formatDate(message.created_at, { hour: "2-digit", minute: "2-digit" })}
+                  <div
+                    key={message.id}
+                    className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+                  >
+                    <Avatar className="h-10 w-10 flex-shrink-0">
+                      <AvatarImage src={message.author?.avatar_url || undefined} />
+                      <AvatarFallback>
+                        {message.author
+                          ? getInitials(message.author.first_name, message.author.last_name)
+                          : "?"}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div
+                      className={`flex-1 max-w-[80%] ${isOwn ? "text-right" : ""}`}
+                    >
+                      {/* En-tête du message */}
+                      <div
+                        className={`flex items-center gap-2 mb-1 ${
+                          isOwn ? "justify-end" : ""
+                        }`}
+                      >
+                        <span className="text-sm font-medium">
+                          {message.author?.first_name} {message.author?.last_name}
+                        </span>
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs text-white ${getChannelBadgeColor(
+                            message.channel
+                          )}`}
+                        >
+                          {getChannelLabel(message.channel)}
+                        </Badge>
+                        {message.is_pinned && (
+                          <Pin className="h-3 w-3 text-club-orange" />
+                        )}
+                        {message.is_important && (
+                          <AlertTriangle className="h-3 w-3 text-amber-500" />
+                        )}
+                      </div>
+
+                      {/* Contenu du message */}
+                      <div
+                        className={`rounded-lg p-3 ${
+                          isOwn
+                            ? "bg-club-orange text-white"
+                            : "bg-muted"
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">
+                          {message.content}
                         </p>
                       </div>
-                    ) : (
-                      <div className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : ""}`}>
-                        <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarImage src={message.sender?.avatar_url || undefined} />
-                          <AvatarFallback className="text-xs">
-                            {message.sender ? getInitials(message.sender.first_name, message.sender.last_name) : "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className={`max-w-[70%] rounded-lg p-3 ${isOwnMessage ? "bg-club-orange text-white" : "bg-muted"}`}>
-                          {!isOwnMessage && message.sender && (
-                            <p className="text-xs font-medium mb-1 flex items-center gap-1">
-                              {message.sender.first_name} {message.sender.last_name}
-                              {message.sender.role !== "athlete" && <Badge variant="secondary" className="text-[10px] py-0">Coach</Badge>}
-                            </p>
-                          )}
-                          <p className="text-sm">{message.content}</p>
-                          <p className={`text-xs mt-1 ${isOwnMessage ? "text-white/70" : "text-muted-foreground"}`}>
-                            {formatDate(message.created_at, { hour: "2-digit", minute: "2-digit" })}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+
+                      {/* Horodatage */}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatRelativeTime(message.created_at)}
+                      </p>
+                    </div>
                   </div>
                 );
               })
             )}
             <div ref={messagesEndRef} />
-          </CardContent>
+          </div>
+        </ScrollArea>
 
-          {isCoach && selectedGroup && (
-            <div className="border-t p-4">
-              <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex gap-2">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Écrivez un message au groupe..."
-                  disabled={isSending}
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={isSending || !newMessage.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              </form>
+        {/* Zone de saisie (coachs et admins seulement) */}
+        {isCoach && (
+          <div className="border-t p-4 space-y-3">
+            {/* Sélection du canal */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Envoyer à :</span>
+              <Tabs
+                value={selectedChannel}
+                onValueChange={(v) => setSelectedChannel(v as ChatChannelType)}
+              >
+                <TabsList className="h-8">
+                  {availableChannels.map((channel) => (
+                    <TabsTrigger
+                      key={channel.value}
+                      value={channel.value}
+                      className="text-xs px-2 py-1 data-[state=active]:bg-club-orange data-[state=active]:text-white"
+                    >
+                      {channel.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             </div>
-          )}
-        </Card>
-      )}
+
+            {/* Champ de texte */}
+            <div className="flex gap-2">
+              <Textarea
+                placeholder="Écrire un message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                className="flex-1 min-h-[60px] resize-none"
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={!newMessage.trim() || isSending}
+                className="bg-club-orange hover:bg-club-orange/90"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Message pour les non-coachs */}
+        {!isCoach && (
+          <div className="border-t p-4 text-center text-sm text-muted-foreground">
+            Seuls les coachs peuvent envoyer des messages
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

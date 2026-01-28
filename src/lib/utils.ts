@@ -79,3 +79,93 @@ export function getStaffRoleLabel(role: string): string {
       return role;
   }
 }
+
+/**
+ * Formate une date relative (il y a X minutes, etc.)
+ */
+export function formatRelativeTime(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "À l'instant";
+  if (diffMins < 60) return `Il y a ${diffMins} min`;
+  if (diffHours < 24) return `Il y a ${diffHours}h`;
+  if (diffDays < 7) return `Il y a ${diffDays}j`;
+  return formatDate(d, { weekday: undefined, year: undefined });
+}
+
+/**
+ * Formate le nom du jour de la semaine
+ */
+export function getDayName(dayOfWeek: number): string {
+  const days = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  return days[dayOfWeek] || "";
+}
+
+/**
+ * Retourne le libellé de la catégorie de groupe
+ */
+export function getCategoryLabel(category: string): string {
+  switch (category) {
+    case "recreational":
+      return "Récréatif";
+    case "intensive":
+      return "Intensif";
+    default:
+      return category;
+  }
+}
+
+/**
+ * Retourne la couleur de badge pour la catégorie
+ */
+export function getCategoryBadgeColor(category: string): string {
+  switch (category) {
+    case "recreational":
+      return "bg-green-500 text-white";
+    case "intensive":
+      return "bg-blue-600 text-white";
+    default:
+      return "bg-slate-400 text-white";
+  }
+}
+
+/**
+ * Retourne le libellé du canal de chat
+ */
+export function getChannelLabel(channel: string): string {
+  switch (channel) {
+    case "all":
+      return "Tous";
+    case "recreational":
+      return "Récréatif";
+    case "intensive":
+      return "Intensif";
+    case "staff":
+      return "Staff";
+    default:
+      return channel;
+  }
+}
+
+/**
+ * Retourne la couleur de badge pour le canal
+ */
+export function getChannelBadgeColor(channel: string): string {
+  switch (channel) {
+    case "all":
+      return "bg-slate-500";
+    case "recreational":
+      return "bg-green-500";
+    case "intensive":
+      return "bg-blue-600";
+    case "staff":
+      return "bg-purple-600";
+    default:
+      return "bg-slate-400";
+  }
+}

@@ -35,33 +35,38 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfiles = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_profile_access")
-      .select(`
-        relation,
-        profile:profiles(*)
-      `)
-      .eq("user_id", userId);
+    try {
+      const { data, error } = await supabase
+        .from("user_profile_access")
+        .select(`
+          relation,
+          profile:profiles(*)
+        `)
+        .eq("user_id", userId);
 
-    if (error) {
-      console.error("Erreur lors du chargement des profils:", error);
-      return;
-    }
+      if (error) {
+        console.error("Erreur lors du chargement des profils:", error.message || error);
+        console.error("Détails:", error);
+        return;
+      }
 
-    if (data && data.length > 0) {
-      const rawData = data as unknown as ProfileAccessRow[];
-      const profileAccess = rawData
-        .filter((item) => item.profile)
-        .map((item) => ({
-          profile: item.profile as Profile,
-          relation: item.relation as RelationType,
-        }));
+      if (data && data.length > 0) {
+        const rawData = data as unknown as ProfileAccessRow[];
+        const profileAccess = rawData
+          .filter((item) => item.profile)
+          .map((item) => ({
+            profile: item.profile as Profile,
+            relation: item.relation as RelationType,
+          }));
 
-      setProfiles(profileAccess);
+        setProfiles(profileAccess);
 
-      // Définir le profil actif (self en priorité)
-      const selfProfile = profileAccess.find((p) => p.relation === "self");
-      setActiveProfile(selfProfile?.profile || profileAccess[0]?.profile || null);
+        // Définir le profil actif (self en priorité)
+        const selfProfile = profileAccess.find((p) => p.relation === "self");
+        setActiveProfile(selfProfile?.profile || profileAccess[0]?.profile || null);
+      }
+    } catch (err) {
+      console.error("Exception lors du chargement des profils:", err);
     }
   }, []);
 
