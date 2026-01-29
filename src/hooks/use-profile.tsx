@@ -99,31 +99,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Gérer le retour après inactivité (visibilité de la page)
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible") {
-        // Vérifier si la session est toujours valide
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUser(session.user);
-          // Rafraîchir les profils
-          await fetchProfiles(session.user.id);
-        } else {
-          // Session expirée, rediriger vers login
-          setUser(null);
-          setProfiles([]);
-          setActiveProfile(null);
-        }
-        setIsLoading(false);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      subscription.unsubscribe();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    return () => subscription.unsubscribe();
   }, [fetchProfiles]);
 
   const isCoach = activeProfile?.role === "coach" || activeProfile?.role === "admin";
