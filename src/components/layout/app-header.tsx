@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Bike, ChevronDown, LogOut, Bell, Settings, User } from "lucide-react";
+import { Bike, ChevronDown, LogOut, Bell, Settings, User, Sparkles } from "lucide-react";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/lib/supabase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -26,6 +26,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getInitials, formatRelativeTime } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ChangelogModal } from "@/components/changelog-modal";
 import type { Notification } from "@/types/database";
 import Link from "next/link";
 
@@ -34,6 +35,7 @@ export function AppHeader() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
@@ -155,6 +157,15 @@ export function AppHeader() {
         {/* Logo et sélecteur de profil */}
         <div className="flex items-center gap-2">
           <Bike className="h-6 w-6 text-club-orange" />
+
+          {/* Beta Badge with changelog button */}
+          <button
+            onClick={() => setShowChangelog(true)}
+            className="flex items-center gap-1 px-2 py-0.5 bg-club-orange/10 hover:bg-club-orange/20 border border-club-orange/30 rounded-full transition-colors"
+          >
+            <Sparkles className="h-3 w-3 text-club-orange" />
+            <span className="text-xs font-medium text-club-orange">BETA</span>
+          </button>
 
           {/* Profile Switcher */}
           {profiles.length > 1 ? (
@@ -327,6 +338,9 @@ export function AppHeader() {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Changelog Modal */}
+      <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
     </header>
   );
 }
