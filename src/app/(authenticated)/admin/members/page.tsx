@@ -298,14 +298,14 @@ export default function AdminMembersPage() {
               <div className="space-y-2">
                 <Label htmlFor="member_category">Catégorie (abonnement)</Label>
                 <Select
-                  value={formData.member_category}
-                  onValueChange={(value: "" | "recreational" | "intensive") => setFormData({ ...formData, member_category: value })}
+                  value={formData.member_category || "undefined"}
+                  onValueChange={(value: any) => setFormData({ ...formData, member_category: value === "undefined" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Non défini" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Non défini</SelectItem>
+                    <SelectItem value="undefined">Non défini</SelectItem>
                     <SelectItem value="recreational">Récréatif</SelectItem>
                     <SelectItem value="intensive">Intensif</SelectItem>
                   </SelectContent>
@@ -315,14 +315,14 @@ export default function AdminMembersPage() {
                 <div className="space-y-2">
                   <Label htmlFor="group">Groupe (optionnel)</Label>
                   <Select
-                    value={formData.group_id}
-                    onValueChange={(value) => setFormData({ ...formData, group_id: value })}
+                    value={formData.group_id || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, group_id: value === "none" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Aucun groupe" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Aucun groupe</SelectItem>
+                      <SelectItem value="none">Aucun groupe</SelectItem>
                       {groups.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.name}
