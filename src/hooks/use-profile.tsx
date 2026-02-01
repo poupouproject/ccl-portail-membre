@@ -23,6 +23,8 @@ interface ProfileContextType {
   isLoading: boolean;
   isCoach: boolean;
   isAdmin: boolean;
+  isParent: boolean;
+  hasChildren: boolean;
   refetch: () => Promise<void>;
 }
 
@@ -104,6 +106,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   const isCoach = activeProfile?.role === "coach" || activeProfile?.role === "admin";
   const isAdmin = activeProfile?.role === "admin";
+  // Vérifie si l'utilisateur a accès à des profils d'enfants (relation parent ou guardian)
+  const hasChildren = profiles.some((p) => p.relation === "parent" || p.relation === "guardian");
+  // Vérifie si le profil actif est celui d'un parent (self avec accès enfants)
+  const selfProfile = profiles.find((p) => p.relation === "self");
+  const isParent = hasChildren && activeProfile?.id === selfProfile?.profile.id;
 
   return (
     <ProfileContext.Provider
@@ -115,6 +122,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         isLoading,
         isCoach,
         isAdmin,
+        isParent,
+        hasChildren,
         refetch,
       }}
     >

@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, Calendar, GraduationCap, MessageSquare, User, Shield, MapPin, Users } from "lucide-react";
+import { Home, Calendar, GraduationCap, MessageSquare, Shield, MapPin, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,15 +19,14 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { href: "/dashboard", label: "Accueil", icon: Home },
   { href: "/calendar", label: "Calendrier", icon: Calendar },
-  { href: "/team", label: "Communications", icon: MessageSquare },
-  { href: "/profile", label: "Mon profil", icon: User },
+  { href: "/team", label: "Équipe", icon: MessageSquare },
 ];
 
 const adminNavItems: NavItem[] = [
   { href: "/admin", label: "Tableau de bord", icon: Shield },
   { href: "/admin/events", label: "Événements", icon: Calendar },
   { href: "/admin/groups", label: "Groupes", icon: Users, adminOnly: true },
-  { href: "/admin/members", label: "Membres", icon: User, adminOnly: true },
+  { href: "/admin/members", label: "Membres", icon: Users, adminOnly: true },
   { href: "/admin/locations", label: "Emplacements", icon: MapPin },
   { href: "/admin/announcements", label: "Annonces", icon: MessageSquare },
   { href: "/admin/academy", label: "Académie", icon: GraduationCap },
