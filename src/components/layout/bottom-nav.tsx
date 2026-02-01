@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Calendar, GraduationCap, MessageSquare, User, Shield } from "lucide-react";
+import { Home, Calendar, GraduationCap, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
 
@@ -16,10 +16,9 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Accueil", icon: Home },
   { href: "/calendar", label: "Agenda", icon: Calendar },
-  { href: "/academy", label: "Académie", icon: GraduationCap, roles: ["admin", "coach"] },
   { href: "/team", label: "Équipe", icon: MessageSquare },
+  { href: "/academy", label: "Académie", icon: GraduationCap, roles: ["admin", "coach"] },
   { href: "/admin", label: "Admin", icon: Shield, roles: ["admin", "coach"] },
-  { href: "/profile", label: "Profil", icon: User },
 ];
 
 export function BottomNav() {
