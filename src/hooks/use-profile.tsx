@@ -108,9 +108,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const isAdmin = activeProfile?.role === "admin";
   // Vérifie si l'utilisateur a accès à des profils d'enfants (relation parent ou guardian)
   const hasChildren = profiles.some((p) => p.relation === "parent" || p.relation === "guardian");
-  // Vérifie si le profil actif est celui d'un parent (self avec accès enfants)
+  // Vérifie si le profil actif est celui d'un parent (self avec accès enfants ou role explicitement parent)
   const selfProfile = profiles.find((p) => p.relation === "self");
-  const isParent = hasChildren && activeProfile?.id === selfProfile?.profile.id;
+  const isParent = activeProfile?.role === "parent" || (hasChildren && activeProfile?.id === selfProfile?.profile.id);
 
   return (
     <ProfileContext.Provider

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,11 +48,13 @@ export function VideoCard({ video, isCompleted, onToggleComplete }: VideoCardPro
             onClick={() => setShowVideo(true)}
           >
             {getThumbnailUrl() && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={getThumbnailUrl()!}
                 alt={video.title}
-                className="w-full h-full object-cover"
+                fill
+                sizes="128px"
+                className="object-cover"
+                unoptimized // YouTube images sont déjà optimisées
               />
             )}
             <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/50 transition-colors">

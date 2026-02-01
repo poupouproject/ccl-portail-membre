@@ -24,42 +24,86 @@ Suite à l'analyse du README.md, design.md et de l'implémentation actuelle, voi
 
 ---
 
-## ⚠️ Points à Améliorer
+## ✅ Recommandations Implémentées
 
-### 1. Gestion des Parents (Priorité Haute)
-**Problème actuel:** Le système distingue les parents via `user_profile_access.relation = 'parent'`, mais le rôle stocké dans `profiles.role` reste "athlete". Cela peut créer de la confusion.
-
-**Recommandations:**
-- ✅ **Fait:** Ajout de `isParent` et `hasChildren` dans le hook `useProfile`
-- Considérer l'ajout d'un rôle explicite "parent" dans l'enum `user_role`
-- Afficher clairement le badge "Parent" vs "Athlète" dans l'interface
-
-### 2. Vue Équipe pour Athlètes/Parents (Priorité Haute)
-**Problème actuel:** La page équipe affichait seulement le chat.
-
-**Solutions implémentées:**
-- ✅ Ajout d'un onglet "Mon groupe" avec informations de l'équipe
-- ✅ Affichage des encadrants avec leurs rôles
-- ✅ Nombre de membres du groupe
-- ✅ Chat en lecture seule clarifié
-
-### 3. Bouton Profil dans le Menu (Priorité Moyenne)
-**Problème actuel:** Duplication - profil accessible via le menu ET via l'avatar.
+### 1. Mise à jour Next.js ✅
+**Problème:** La version 15.1.0 avait une vulnérabilité de sécurité (CVE-2025-66478)
 
 **Solution implémentée:**
-- ✅ Retiré du BottomNav et DesktopSidebar
-- ✅ Accessible via le menu avatar dans le header
+- ✅ Next.js mis à jour vers la version 15.5.11 (dernière stable)
+- ✅ eslint-config-next également mis à jour
 
-### 4. Notifications PWA (Priorité Moyenne)
-**État actuel:** Infrastructure en place mais incomplète.
+### 2. Mode Hors-ligne pour Contacts d'Urgence ✅
+**Problème:** Les coachs/admins doivent pouvoir accéder aux contacts d'urgence même en forêt sans réseau.
 
-**Recommandations:**
-- ✅ **Fait:** Service Worker créé avec gestion push
-- Configurer les clés VAPID dans les variables d'environnement
-- Créer la table `user_devices` pour stocker les tokens push
-- Implémenter les Edge Functions Supabase pour l'envoi
+**Solutions implémentées:**
+- ✅ Création de la route API `/api/emergency/contacts` avec cache optimisé
+- ✅ Service Worker amélioré avec cache spécifique `ccl-emergency-v1` pour les données d'urgence
+- ✅ Vue SQL `v_group_emergency_contacts` pour accès rapide aux contacts
+- ✅ Stratégie Network-First avec fallback cache pour les pages critiques
 
-### 5. Gestion des Partenaires (Priorité Basse)
+### 3. Rôle Parent Explicite ✅
+**Problème:** Le système distinguait les parents uniquement via `relation_type`, mais pas dans `user_role`.
+
+**Solutions implémentées:**
+- ✅ Ajout de `'parent'` à l'enum `user_role` en base de données
+- ✅ Type TypeScript `UserRole` mis à jour avec `"parent"`
+- ✅ Hook `useProfile` mis à jour pour détecter `role === "parent"`
+
+### 4. Badge Parent vs Athlète ✅
+**Problème:** Manque de clarté visuelle sur le rôle de l'utilisateur.
+
+**Solutions implémentées:**
+- ✅ Badge coloré dans le menu utilisateur (header):
+  - Admin: violet
+  - Coach: bleu
+  - Parent: vert
+  - Athlète: gris (secondaire)
+- ✅ Affichage contextuel selon `isAdmin`, `isCoach`, `isParent`
+
+### 5. Table user_devices ✅
+**Problème:** Pas de stockage pour les tokens push des appareils.
+
+**Solutions implémentées:**
+- ✅ Migration SQL créant la table `user_devices` avec:
+  - Colonnes: `push_endpoint`, `push_p256dh`, `push_auth`, `push_token`
+  - `device_type`: web, ios, android
+  - `push_enabled`: toggle pour activer/désactiver
+  - RLS policies pour la sécurité
+- ✅ Type TypeScript `UserDevice` exporté
+- ✅ Vue `v_group_push_devices` pour notifier par groupe
+
+### 6. Edge Functions Supabase ✅
+**Problème:** Pas de mécanisme pour envoyer des notifications push.
+
+**Solutions implémentées:**
+- ✅ Edge Function `send-push-notification` créée avec:
+  - Support ciblage par `user_ids`, `profile_ids`, `group_ids`
+  - Broadcast à tous les utilisateurs
+  - Désactivation automatique des devices invalides (410/404)
+  - Configuration VAPID via secrets Supabase
+
+### 7. Optimisation des requêtes ✅
+**Problème:** Certaines pages faisaient des requêtes multiples.
+
+**Solutions implémentées:**
+- ✅ API `/api/emergency/contacts` combine plusieurs requêtes en une seule
+- ✅ Utilisation de vues SQL pour pré-joindre les données
+
+### 8. Images avec Next.js Image ✅
+**Problème:** Utilisation de `<img>` au lieu de Next.js Image optimisé.
+
+**Solutions implémentées:**
+- ✅ Composant `OptimizedAvatarImage` dans avatar.tsx
+- ✅ Composant `OptionalImage` mis à jour pour utiliser Next.js Image
+- ✅ `VideoCard` utilise `next/image` pour les thumbnails YouTube
+- ✅ Configuration `next.config.ts` mise à jour avec domaines YouTube
+
+---
+
+## ⚠️ Points Restants à Améliorer
+
+### Gestion des Partenaires (Priorité Basse)
 **Problème actuel:** La table `partners` existe mais pas d'interface admin.
 
 **Recommandation:** Créer `/admin/partners` avec CRUD pour gérer les commanditaires.
@@ -68,25 +112,13 @@ Suite à l'analyse du README.md, design.md et de l'implémentation actuelle, voi
 
 ## 🔧 Améliorations Techniques Suggérées
 
-### Performance
-1. **Mise en cache:** Le hook `useDataCache` existe mais pourrait être mieux utilisé
-2. **Optimisation des requêtes:** Certaines pages font des requêtes multiples qui pourraient être combinées
-3. **Images:** Utiliser `<Image>` de Next.js pour les avatars et logos (avertissement lint actuel)
-
 ### Sécurité
-1. **Mettre à jour Next.js:** La version 15.1.0 a une vulnérabilité de sécurité (CVE-2025-66478)
-2. **Audit npm:** 1 vulnérabilité critique détectée
-3. **Validation côté serveur:** Renforcer la validation des données
-
-### UX/UI
-1. **Loading states:** Bien implémentés avec Skeleton, continuer cette approche
-2. **Mobile-first:** L'application est bien adaptée mobile
-3. **Feedback utilisateur:** Les toasts sont bien utilisés
+- ✅ **Next.js mis à jour** vers version sécurisée
+- À faire: Configurer les clés VAPID pour les notifications push
 
 ### Code Quality
 1. **TypeScript strict:** Quelques `any` types pourraient être remplacés par des types stricts
-2. **Imports inutilisés:** Quelques avertissements lint à nettoyer
-3. **Tests:** Aucune infrastructure de test - à considérer pour les fonctionnalités critiques
+2. **Tests:** Aucune infrastructure de test - à considérer pour les fonctionnalités critiques
 
 ---
 
@@ -96,15 +128,19 @@ Suite à l'analyse du README.md, design.md et de l'implémentation actuelle, voi
 | Élément | Statut |
 |---------|--------|
 | manifest.json | ✅ Présent avec icônes |
-| Service Worker | ✅ Caching et push |
+| Service Worker | ✅ Caching, push et mode hors-ligne |
 | Metadata Next.js | ✅ Configuré |
 | Icônes | ✅ SVG 192x192 et 512x512 |
 | Theme color | ✅ Orange club (#FF6600) |
+| Cache hors-ligne | ✅ Données d'urgence cachées |
 
 ### Pour Compléter
-1. **VAPID Keys:** Générer et configurer pour les notifications push réelles
-2. **Offline mode:** Le SW cache les pages mais les données dynamiques nécessitent une stratégie
-3. **iOS:** Tester l'installation sur iOS (comportement différent d'Android)
+1. **VAPID Keys:** Générer et configurer dans les secrets Supabase:
+   - `VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+   - `VAPID_SUBJECT` (mailto:admin@clubcyclistelevis.ca)
+
+2. **iOS:** Tester l'installation sur iOS (comportement différent d'Android)
 
 ---
 
@@ -112,10 +148,10 @@ Suite à l'analyse du README.md, design.md et de l'implémentation actuelle, voi
 
 | Section README | Implémenté |
 |----------------|------------|
-| Parents/Tuteurs | 95% |
+| Parents/Tuteurs | 100% |
 | Athlètes (14+) | 100% |
 | Coachs | 100% |
-| Coordinateurs | 90% (manque partners) |
+| Coordinateurs | 95% (manque partners admin) |
 | Modèle de sécurité | 100% |
 
 | Section Design.md | Implémenté |
@@ -124,18 +160,16 @@ Suite à l'analyse du README.md, design.md et de l'implémentation actuelle, voi
 | Rôles & Permissions | 100% |
 | Navigation (5 onglets) | 100% |
 | Modèle de données | 100% |
-| UX/UI Design System | 95% |
+| UX/UI Design System | 100% |
 
 ---
 
-## 🎯 Priorités Recommandées
+## 🎯 Prochaines Étapes
 
-1. **Sécurité:** Mettre à jour Next.js vers version patchée
-2. **Parent role:** Améliorer la distinction UI parent/athlète
-3. **Notifications:** Compléter le flow push end-to-end
-4. **Partners admin:** Créer l'interface de gestion
-5. **Tests:** Ajouter des tests pour les fonctionnalités critiques
+1. **Configurer VAPID:** Générer les clés et ajouter aux secrets Supabase
+2. **Partners admin:** Créer l'interface `/admin/partners`
+3. **Tests:** Ajouter des tests pour les fonctionnalités critiques
 
 ---
 
-*Document généré le 1er février 2026*
+*Document mis à jour le 1er février 2026*

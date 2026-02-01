@@ -31,7 +31,7 @@ import type { Notification } from "@/types/database";
 import Link from "next/link";
 
 export function AppHeader() {
-  const { user, profiles, activeProfile, setActiveProfile, isLoading } = useProfile();
+  const { user, profiles, activeProfile, setActiveProfile, isLoading, isParent, isCoach, isAdmin } = useProfile();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -307,10 +307,25 @@ export function AppHeader() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
-                <div className="flex flex-col">
-                  <span>
-                    {activeProfile?.first_name} {activeProfile?.last_name}
-                  </span>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span>
+                      {activeProfile?.first_name} {activeProfile?.last_name}
+                    </span>
+                    {/* Badge de rôle */}
+                    {isAdmin && (
+                      <Badge variant="default" className="text-xs bg-purple-600">Admin</Badge>
+                    )}
+                    {!isAdmin && isCoach && (
+                      <Badge variant="default" className="text-xs bg-blue-600">Coach</Badge>
+                    )}
+                    {!isAdmin && !isCoach && isParent && (
+                      <Badge variant="default" className="text-xs bg-green-600">Parent</Badge>
+                    )}
+                    {!isAdmin && !isCoach && !isParent && activeProfile?.role === "athlete" && (
+                      <Badge variant="secondary" className="text-xs">Athlète</Badge>
+                    )}
+                  </div>
                   <span className="text-xs font-normal text-muted-foreground">
                     {activeProfile?.email}
                   </span>

@@ -58,7 +58,7 @@ export default function AdminMembersPage() {
     last_name: "",
     email: "",
     phone: "",
-    role: "athlete" as "athlete" | "coach" | "admin",
+    role: "athlete" as "athlete" | "coach" | "admin" | "parent",
     member_category: "" as "" | "recreational" | "intensive",
     birth_date: "",
     emergency_contact_name: "",

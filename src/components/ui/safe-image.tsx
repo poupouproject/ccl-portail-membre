@@ -39,19 +39,25 @@ export function SafeImage({
 }
 
 /**
- * Composant pour les images qui peuvent ne pas exister (avec <img> fallback)
- * Plus robuste que SafeImage pour les URLs externes
+ * Composant pour les images optionnelles avec support Next.js Image
+ * Utilise Next.js Image pour l'optimisation quand possible
  */
 export function OptionalImage({
   src,
   alt,
   fallback,
   className = "",
+  width,
+  height,
+  fill = false,
 }: {
   src?: string | null;
   alt: string;
   fallback?: ReactNode;
   className?: string;
+  width?: number;
+  height?: number;
+  fill?: boolean;
 }) {
   const [hasError, setHasError] = useState(false);
 
@@ -59,10 +65,27 @@ export function OptionalImage({
     return <>{fallback}</>;
   }
 
+  // Si fill est utilisé pour les images responsives
+  if (fill) {
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className={className}
+        onError={() => setHasError(true)}
+        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+      />
+    );
+  }
+
+  // Pour les images avec dimensions fixes
   return (
-    <img
+    <Image
       src={src}
       alt={alt}
+      width={width || 200}
+      height={height || 150}
       className={className}
       onError={() => setHasError(true)}
     />

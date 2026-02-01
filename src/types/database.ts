@@ -13,7 +13,7 @@ export type Json =
   | Json[];
 
 // Enums
-export type UserRole = "admin" | "coach" | "athlete";
+export type UserRole = "admin" | "coach" | "athlete" | "parent";
 export type RelationType = "self" | "parent" | "guardian";
 export type StaffRole = "head_coach" | "assistant" | "sweeper";
 export type AttendanceStatus = "unknown" | "present" | "absent" | "late" | "excused";
@@ -21,6 +21,7 @@ export type GroupCategory = "recreational" | "intensive";
 export type EventScheduleType = "regular" | "special";
 export type ChatChannelType = "all" | "recreational" | "intensive" | "staff";
 export type MembershipStatus = "active" | "lapsed" | "pending" | "archived";
+export type DeviceType = "web" | "ios" | "android";
 
 export interface Database {
   public: {
@@ -731,6 +732,53 @@ export interface Database {
           created_at?: string;
         };
       };
+      user_devices: {
+        Row: {
+          id: string;
+          user_id: string;
+          profile_id: string | null;
+          device_type: string;
+          device_name: string | null;
+          push_endpoint: string | null;
+          push_p256dh: string | null;
+          push_auth: string | null;
+          push_token: string | null;
+          push_enabled: boolean;
+          last_active_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          profile_id?: string | null;
+          device_type?: string;
+          device_name?: string | null;
+          push_endpoint?: string | null;
+          push_p256dh?: string | null;
+          push_auth?: string | null;
+          push_token?: string | null;
+          push_enabled?: boolean;
+          last_active_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          profile_id?: string | null;
+          device_type?: string;
+          device_name?: string | null;
+          push_endpoint?: string | null;
+          push_p256dh?: string | null;
+          push_auth?: string | null;
+          push_token?: string | null;
+          push_enabled?: boolean;
+          last_active_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       v_event_staffing: {
@@ -771,6 +819,20 @@ export interface Database {
           group_ids: string[] | null;
           group_names: string[] | null;
           group_categories: GroupCategory[] | null;
+        };
+      };
+      v_group_emergency_contacts: {
+        Row: {
+          group_id: string;
+          group_name: string;
+          profile_id: string;
+          first_name: string;
+          last_name: string;
+          phone: string | null;
+          emergency_contact_name: string | null;
+          emergency_contact_phone: string | null;
+          emergency_contact_relation: string | null;
+          medical_notes: string | null;
         };
       };
     };
@@ -817,10 +879,12 @@ export type AcademyVideo = Database["public"]["Tables"]["academy_videos"]["Row"]
 export type ChatMessage = Database["public"]["Tables"]["chat_messages"]["Row"];
 export type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 export type WildApricotMember = Database["public"]["Tables"]["wild_apricot_members"]["Row"];
+export type UserDevice = Database["public"]["Tables"]["user_devices"]["Row"];
 
 // Types pour les vues
 export type EventStaffing = Database["public"]["Views"]["v_event_staffing"]["Row"];
 export type EventWithGroups = Database["public"]["Views"]["v_events_with_groups"]["Row"];
+export type GroupEmergencyContact = Database["public"]["Views"]["v_group_emergency_contacts"]["Row"];
 
 // Types composés pour les requêtes avec relations
 export type EventWithGroup = Event & {
