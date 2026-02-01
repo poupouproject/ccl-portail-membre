@@ -59,6 +59,9 @@ self.addEventListener('fetch', (event) => {
   // Ignorer les requêtes non-GET
   if (event.request.method !== 'GET') return;
   
+  // Ignorer les schémas non-HTTP/HTTPS (chrome-extension, etc.)
+  if (!url.protocol.startsWith('http')) return;
+  
   // Stratégie spéciale pour les données d'urgence (contacts d'urgence)
   if (url.pathname.includes('/api/emergency') || 
       (url.href.includes('supabase.co') && url.pathname.includes('v_group_emergency_contacts'))) {
