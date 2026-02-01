@@ -193,7 +193,8 @@ export default function TeamPage() {
 
     setIsSending(true);
     try {
-      const { error } = await (supabase as unknown as { from: (table: string) => { insert: (data: Record<string, unknown>) => Promise<{ error: Error | null }> } }).from("chat_messages").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("chat_messages").insert({
         author_id: activeProfile.id,
         channel: selectedChannel,
         content: newMessage.trim(),

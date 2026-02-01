@@ -131,8 +131,8 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Fermeture d'une notification (statistiques)
-self.addEventListener('notificationclose', (event) => {
-  // On pourrait logger ceci pour des statistiques
-  console.log('Notification fermée:', event.notification.data);
+// Fermeture d'une notification - placeholder pour analytics futur
+self.addEventListener('notificationclose', () => {
+  // Les statistiques peuvent être implémentées ici
+  // via un appel à une Edge Function Supabase
 });
