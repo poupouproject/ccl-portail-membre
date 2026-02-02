@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
+import { useActiveContext } from "@/hooks/use-active-context";
 import { NextEventCard } from "@/components/dashboard/next-event-card";
 import { AnnouncementsFeed } from "@/components/dashboard/announcements-feed";
+import { ParentDashboardSection } from "@/components/dashboard/parent-dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Event, Group, Announcement, Partner, Location } from "@/types/database";
 
@@ -25,6 +27,7 @@ interface EventGroupRow {
 
 export default function DashboardPage() {
   const { activeProfile, isLoading: profileLoading, isCoach } = useProfile();
+  const { activeContext, isLoading: contextLoading, isParent } = useActiveContext();
   const [nextEvent, setNextEvent] = useState<EventWithDetails | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -37,18 +40,28 @@ export default function DashboardPage() {
       setIsLoading(true);
 
       try {
-        // Récupérer les groupes de l'athlète
-        const { data: groupMembershipsData } = await supabase
-          .from("group_members")
-          .select("group_id, groups(*)")
-          .eq("profile_id", activeProfile.id);
+        // Si on a un contexte actif avec un groupe, utiliser ce groupe
+        // Sinon, utiliser l'ancienne méthode avec group_members
+        let groupIds: string[] = [];
+        
+        if (activeContext?.group_id) {
+          // Utiliser le groupe du contexte actif
+          groupIds = [activeContext.group_id];
+        } else {
+          // Fallback: récupérer les groupes via group_members
+          const { data: groupMembershipsData } = await supabase
+            .from("group_members")
+            .select("group_id, groups(*)")
+            .eq("profile_id", activeProfile.id);
 
-        const groupMemberships = groupMembershipsData as GroupMembership[] | null;
+          const groupMemberships = groupMembershipsData as GroupMembership[] | null;
+          if (groupMemberships && groupMemberships.length > 0) {
+            groupIds = groupMemberships.map((m) => m.group_id);
+          }
+        }
 
         // Récupérer le prochain événement via event_groups
-        if (groupMemberships && groupMemberships.length > 0) {
-          const groupIds = groupMemberships.map((m) => m.group_id);
-          
+        if (groupIds.length > 0) {
           // Chercher les événements liés à ces groupes via event_groups
           const { data: eventGroupsData } = await supabase
             .from("event_groups")
@@ -120,9 +133,9 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData();
-  }, [activeProfile]);
+  }, [activeProfile, activeContext]);
 
-  if (profileLoading || isLoading) {
+  if (profileLoading || contextLoading || isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -134,6 +147,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Section Parent - Vue des enfants */}
+      {isParent && <ParentDashboardSection />}
+
       {/* Carte Prochaine Sortie */}
       <section>
         <h2 className="text-sm font-semibold text-muted-foreground mb-3">

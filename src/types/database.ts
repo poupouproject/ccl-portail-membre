@@ -22,6 +22,8 @@ export type EventScheduleType = "regular" | "special";
 export type ChatChannelType = "all" | "recreational" | "intensive" | "staff";
 export type MembershipStatus = "active" | "lapsed" | "pending" | "archived";
 export type DeviceType = "web" | "ios" | "android";
+export type SubscriptionStatus = "active" | "pending" | "expired" | "cancelled";
+export type ContextType = "participant" | "coach" | "dependent";
 
 export interface Database {
   public: {
@@ -343,6 +345,7 @@ export interface Database {
           id: string;
           event_id: string;
           profile_id: string;
+          subscription_id: string | null;
           status: AttendanceStatus;
           note: string | null;
           updated_by: string | null;
@@ -352,6 +355,7 @@ export interface Database {
           id?: string;
           event_id: string;
           profile_id: string;
+          subscription_id?: string | null;
           status?: AttendanceStatus;
           note?: string | null;
           updated_by?: string | null;
@@ -361,6 +365,7 @@ export interface Database {
           id?: string;
           event_id?: string;
           profile_id?: string;
+          subscription_id?: string | null;
           status?: AttendanceStatus;
           note?: string | null;
           updated_by?: string | null;
@@ -779,6 +784,41 @@ export interface Database {
           updated_at?: string;
         };
       };
+      subscriptions: {
+        Row: {
+          id: string;
+          profile_id: string;
+          group_id: string;
+          subscription_type: string;
+          status: SubscriptionStatus;
+          start_date: string;
+          end_date: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          group_id: string;
+          subscription_type: string;
+          status?: SubscriptionStatus;
+          start_date?: string;
+          end_date?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          group_id?: string;
+          subscription_type?: string;
+          status?: SubscriptionStatus;
+          start_date?: string;
+          end_date?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       v_event_staffing: {
@@ -851,6 +891,22 @@ export interface Database {
         };
         Returns: string;
       };
+      get_user_contexts: {
+        Args: {
+          user_uuid: string;
+        };
+        Returns: {
+          context_type: string;
+          profile_id: string;
+          profile_name: string;
+          subscription_id: string | null;
+          subscription_type: string | null;
+          group_id: string;
+          group_name: string;
+          relation: string;
+          staff_role: string | null;
+        }[];
+      };
     };
     Enums: {
       user_role: UserRole;
@@ -880,6 +936,7 @@ export type ChatMessage = Database["public"]["Tables"]["chat_messages"]["Row"];
 export type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 export type WildApricotMember = Database["public"]["Tables"]["wild_apricot_members"]["Row"];
 export type UserDevice = Database["public"]["Tables"]["user_devices"]["Row"];
+export type Subscription = Database["public"]["Tables"]["subscriptions"]["Row"];
 
 // Types pour les vues
 export type EventStaffing = Database["public"]["Views"]["v_event_staffing"]["Row"];
@@ -911,3 +968,16 @@ export type GroupWithDetails = Group & {
   members?: Profile[];
   staff?: Profile[];
 };
+
+// Type pour le contexte utilisateur multi-abonnements
+export interface UserContext {
+  context_type: ContextType;
+  profile_id: string;
+  profile_name: string;
+  subscription_id: string | null;
+  subscription_type: string | null;
+  group_id: string;
+  group_name: string;
+  relation: RelationType;
+  staff_role: string | null;
+}
