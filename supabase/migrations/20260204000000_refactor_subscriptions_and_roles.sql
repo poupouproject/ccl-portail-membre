@@ -295,17 +295,19 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_odoo_line ON public.subscriptions(o
 -- ==============================================================================
 
 -- Vue qui dérive les relations parent/enfant depuis profiles.parent_odoo_id
+-- Le user_id du parent est obtenu via user_profile_access (où relation = 'self')
 CREATE OR REPLACE VIEW public.v_family_relations AS
 SELECT 
   parent.id as parent_profile_id,
-  parent.auth_user_id as parent_user_id,
+  upa.user_id as parent_user_id,
   parent.first_name || ' ' || parent.last_name as parent_name,
   child.id as child_profile_id,
   child.first_name || ' ' || child.last_name as child_name,
-  'parent' as relation_type,
-  'odoo' as source
+  'parent'::TEXT as relation_type,
+  'odoo'::TEXT as source
 FROM public.profiles child
 JOIN public.profiles parent ON parent.odoo_id = child.parent_odoo_id
+LEFT JOIN public.user_profile_access upa ON upa.profile_id = parent.id AND upa.relation = 'self'
 WHERE child.parent_odoo_id IS NOT NULL;
 
 -- Permissions
@@ -413,6 +415,9 @@ CREATE TRIGGER group_staff_revokes_coach_role
 -- ==============================================================================
 -- ÉTAPE 9 : FONCTION get_user_contexts MISE À JOUR
 -- ==============================================================================
+
+-- Supprimer l'ancienne fonction (signature différente)
+DROP FUNCTION IF EXISTS public.get_user_contexts(UUID);
 
 CREATE OR REPLACE FUNCTION public.get_user_contexts(user_uuid UUID)
 RETURNS TABLE (
