@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Bike, ChevronDown, LogOut, Bell, Settings, User, Sparkles } from "lucide-react";
+import { Bike, LogOut, Bell, Settings, User, Sparkles } from "lucide-react";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/lib/supabase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -27,11 +27,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { getInitials, formatRelativeTime } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChangelogModal } from "@/components/changelog-modal";
+import { ContextSelector } from "@/components/layout/context-selector";
 import type { Notification } from "@/types/database";
 import Link from "next/link";
 
 export function AppHeader() {
-  const { user, profiles, activeProfile, setActiveProfile, isLoading, isParent, isCoach, isAdmin } = useProfile();
+  const { user, activeProfile, isLoading, isParent, isCoach, isAdmin } = useProfile();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -154,7 +155,7 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-40 bg-white border-b">
       <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-        {/* Logo et sélecteur de profil */}
+        {/* Logo et sélecteur de contexte */}
         <div className="flex items-center gap-2">
           <Bike className="h-6 w-6 text-club-orange" />
 
@@ -167,52 +168,8 @@ export function AppHeader() {
             <span className="text-xs font-medium text-club-orange">BETA</span>
           </button>
 
-          {/* Profile Switcher */}
-          {profiles.length > 1 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1 font-semibold hover:text-club-orange transition-colors">
-                {activeProfile?.first_name || "Profil"}
-                <ChevronDown className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel>Changer de profil</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {profiles.map(({ profile, relation }) => (
-                  <DropdownMenuItem
-                    key={profile.id}
-                    onClick={() => setActiveProfile(profile)}
-                    className={activeProfile?.id === profile.id ? "bg-accent" : ""}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarImage src={profile.avatar_url || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {getInitials(profile.first_name, profile.last_name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <span className="text-sm font-medium">
-                          {profile.first_name} {profile.last_name}
-                        </span>
-                        {relation !== "self" && (
-                          <span className="text-xs text-muted-foreground ml-1">
-                            ({relation === "parent" ? "Enfant" : "Tuteur"})
-                          </span>
-                        )}
-                      </div>
-                      {activeProfile?.id === profile.id && (
-                        <Badge variant="secondary" className="text-xs">
-                          Actif
-                        </Badge>
-                      )}
-                    </div>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <span className="font-semibold">{activeProfile?.first_name || "CCL"}</span>
-          )}
+          {/* Context Selector (replaces Profile Switcher) */}
+          <ContextSelector />
         </div>
 
         {/* Actions: Notifications & Avatar */}

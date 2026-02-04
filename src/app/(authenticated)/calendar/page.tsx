@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
+import { useActiveContext } from "@/hooks/use-active-context";
 import { EventListItem } from "@/components/calendar/event-list-item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import type { Event, Group, Location } from "@/types/database";
 
 interface EventWithDetails extends Event {
@@ -24,6 +26,7 @@ interface EventGroupRow {
 
 export default function CalendarPage() {
   const { activeProfile, isLoading: profileLoading, isCoach } = useProfile();
+  const { activeContext, isLoading: contextLoading, activeGroup } = useActiveContext();
   const [upcomingEvents, setUpcomingEvents] = useState<EventWithDetails[]>([]);
   const [pastEvents, setPastEvents] = useState<EventWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,26 +38,36 @@ export default function CalendarPage() {
       setIsLoading(true);
 
       try {
-        // Récupérer les groupes de l'athlète
-        const { data: groupMembershipsData } = await supabase
-          .from("group_members")
-          .select("group_id")
-          .eq("profile_id", activeProfile.id);
-
-        const groupMemberships = groupMembershipsData as GroupMembership[] | null;
         const now = new Date().toISOString();
+        let groupIds: string[] = [];
+
+        // Si on a un contexte actif avec un groupe, utiliser ce groupe
+        if (activeContext?.group_id) {
+          groupIds = [activeContext.group_id];
+        } else {
+          // Fallback: récupérer les groupes via group_members
+          const { data: groupMembershipsData } = await supabase
+            .from("group_members")
+            .select("group_id")
+            .eq("profile_id", activeProfile.id);
+
+          const groupMemberships = groupMembershipsData as GroupMembership[] | null;
+          if (groupMemberships && groupMemberships.length > 0) {
+            groupIds = groupMemberships.map((m) => m.group_id);
+          }
+        }
 
         // Si l'utilisateur n'a pas de groupe mais est coach, montrer tous les événements
-        if ((!groupMemberships || groupMemberships.length === 0) && !isCoach) {
+        if (groupIds.length === 0 && !isCoach) {
+          setUpcomingEvents([]);
+          setPastEvents([]);
           setIsLoading(false);
           return;
         }
 
         let eventIds: string[] = [];
         
-        if (groupMemberships && groupMemberships.length > 0) {
-          const groupIds = groupMemberships.map((m) => m.group_id);
-          
+        if (groupIds.length > 0) {
           // Chercher les événements liés à ces groupes via event_groups
           const { data: eventGroupsData } = await supabase
             .from("event_groups")
@@ -121,9 +134,9 @@ export default function CalendarPage() {
     }
 
     fetchEvents();
-  }, [activeProfile]);
+  }, [activeProfile, activeContext]);
 
-  if (profileLoading || isLoading) {
+  if (profileLoading || contextLoading || isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-full" />
@@ -136,7 +149,14 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Calendrier</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Calendrier</h1>
+        {activeGroup && (
+          <Badge variant="outline" className="text-sm">
+            {activeGroup.name}
+          </Badge>
+        )}
+      </div>
 
       <Tabs defaultValue="upcoming" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
