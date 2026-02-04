@@ -50,6 +50,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.error("Erreur lors du chargement des profils:", error.message || error);
         console.error("Détails:", error);
+        setProfiles([]);
+        setActiveProfile(null);
         return;
       }
 
@@ -67,9 +69,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         // Définir le profil actif (self en priorité)
         const selfProfile = profileAccess.find((p) => p.relation === "self");
         setActiveProfile(selfProfile?.profile || profileAccess[0]?.profile || null);
+      } else {
+        // Pas de profils trouvés
+        setProfiles([]);
+        setActiveProfile(null);
       }
     } catch (err) {
       console.error("Exception lors du chargement des profils:", err);
+      setProfiles([]);
+      setActiveProfile(null);
     }
   }, []);
 
