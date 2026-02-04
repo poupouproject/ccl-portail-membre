@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
-import type { UserContext, Group } from "@/types/database";
+import type { UserContext, Group, RoleInfo } from "@/types/database";
 
 interface ActiveContextState {
   contexts: UserContext[];
@@ -15,12 +15,17 @@ interface ActiveContextState {
   // Computed properties
   isCoach: boolean;
   isAdmin: boolean;
+  isCoordinator: boolean;
   isParent: boolean;
   hasMultipleContexts: boolean;
   // Helper to get children contexts
   getChildrenContexts: () => UserContext[];
   // Get group details for active context
   activeGroup: Group | null;
+  // Get all roles for active context
+  activeRoles: RoleInfo[];
+  // Check permission
+  hasPermission: (permission: string) => boolean;
 }
 
 const STORAGE_KEY = "ccl_active_context";
@@ -171,24 +176,38 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
     );
   }, [contexts]);
 
-  // Computed properties
   const isCoach = activeContext?.context_type === "coach";
   const isParent =
     activeContext?.context_type === "dependent" ||
     contexts.some((c) => c.relation === "parent" || c.relation === "guardian");
   const hasMultipleContexts = contexts.length > 1;
 
-  // Check if user has admin role (need to check from profiles)
+  // Get roles for active context
+  const activeRoles: RoleInfo[] = activeContext?.roles || [];
+
+  // Check if user has a specific permission
+  const hasPermission = useCallback((permission: string): boolean => {
+    if (!activeContext) return false;
+    return activeRoles.some((role) => {
+      const permissions = role.permissions as Record<string, unknown>;
+      return permissions[permission] === true;
+    });
+  }, [activeContext, activeRoles]);
+
+  // Check if user has admin or coordinator role (need to check from profiles)
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isCoordinator, setIsCoordinator] = useState(false);
+  
   useEffect(() => {
-    async function checkAdmin() {
+    async function checkAdminStatus() {
       if (!user) {
         setIsAdmin(false);
+        setIsCoordinator(false);
         return;
       }
       const { data } = await supabase
         .from("user_profile_access")
-        .select("profile:profiles(role)")
+        .select("profile:profiles(role, is_admin, is_coordinator)")
         .eq("user_id", user.id)
         .eq("relation", "self")
         .limit(1)
@@ -197,11 +216,13 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const profileData = data as any;
       if (profileData?.profile) {
-        const profile = profileData.profile as { role: string };
-        setIsAdmin(profile.role === "admin");
+        const profile = profileData.profile as { role: string; is_admin?: boolean; is_coordinator?: boolean };
+        // Support both legacy role field and new is_admin/is_coordinator flags
+        setIsAdmin(profile.is_admin === true || profile.role === "admin");
+        setIsCoordinator(profile.is_coordinator === true || profile.role === "admin" || profile.role === "coach");
       }
     }
-    checkAdmin();
+    checkAdminStatus();
   }, [user]);
 
   return (
@@ -215,10 +236,13 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
         refetch,
         isCoach,
         isAdmin,
+        isCoordinator,
         isParent,
         hasMultipleContexts,
         getChildrenContexts,
         activeGroup,
+        activeRoles,
+        hasPermission,
       }}
     >
       {children}

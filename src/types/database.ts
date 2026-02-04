@@ -1,7 +1,7 @@
 /**
  * Types générés pour la base de données Supabase
  * Ces types correspondent au schéma défini dans les migrations
- * Version mise à jour avec support chat, locations, Wild Apricot
+ * Version mise à jour avec support multi-abonnements, rôles, Odoo
  */
 
 export type Json =
@@ -24,6 +24,9 @@ export type MembershipStatus = "active" | "lapsed" | "pending" | "archived";
 export type DeviceType = "web" | "ios" | "android";
 export type SubscriptionStatus = "active" | "pending" | "expired" | "cancelled";
 export type ContextType = "participant" | "coach" | "dependent";
+export type RoleSource = "subscription" | "group_staff" | "manual";
+export type SubscriptionCategory = "jeunesse" | "adulte";
+export type SubscriptionFrequency = "1x_semaine" | "2x_semaine" | "illimite";
 
 export interface Database {
   public: {
@@ -31,7 +34,9 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
+          auth_user_id: string | null;
           odoo_id: number | null;
+          parent_odoo_id: number | null;
           claim_code: string | null;
           wa_member_id: string | null;
           first_name: string;
@@ -49,14 +54,21 @@ export interface Database {
           address_city: string | null;
           address_postal_code: string | null;
           birth_date: string | null;
+          birthdate: string | null;
           photo_permission: boolean;
           is_active: boolean;
+          is_admin: boolean;
+          is_coordinator: boolean;
+          is_minor: boolean;
+          is_autonomous: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
+          auth_user_id?: string | null;
           odoo_id?: number | null;
+          parent_odoo_id?: number | null;
           claim_code?: string | null;
           wa_member_id?: string | null;
           first_name: string;
@@ -74,14 +86,19 @@ export interface Database {
           address_city?: string | null;
           address_postal_code?: string | null;
           birth_date?: string | null;
+          birthdate?: string | null;
           photo_permission?: boolean;
           is_active?: boolean;
+          is_admin?: boolean;
+          is_coordinator?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
+          auth_user_id?: string | null;
           odoo_id?: number | null;
+          parent_odoo_id?: number | null;
           claim_code?: string | null;
           wa_member_id?: string | null;
           first_name?: string;
@@ -99,8 +116,11 @@ export interface Database {
           address_city?: string | null;
           address_postal_code?: string | null;
           birth_date?: string | null;
+          birthdate?: string | null;
           photo_permission?: boolean;
           is_active?: boolean;
+          is_admin?: boolean;
+          is_coordinator?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -790,9 +810,13 @@ export interface Database {
           profile_id: string;
           group_id: string;
           subscription_type: string;
+          subscription_type_id: string | null;
           status: SubscriptionStatus;
           start_date: string;
           end_date: string | null;
+          odoo_sale_order_line_id: number | null;
+          synced_at: string | null;
+          source: string;
           created_at: string;
           updated_at: string;
         };
@@ -801,9 +825,13 @@ export interface Database {
           profile_id: string;
           group_id: string;
           subscription_type: string;
+          subscription_type_id?: string | null;
           status?: SubscriptionStatus;
           start_date?: string;
           end_date?: string | null;
+          odoo_sale_order_line_id?: number | null;
+          synced_at?: string | null;
+          source?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -812,11 +840,123 @@ export interface Database {
           profile_id?: string;
           group_id?: string;
           subscription_type?: string;
+          subscription_type_id?: string | null;
           status?: SubscriptionStatus;
           start_date?: string;
           end_date?: string | null;
+          odoo_sale_order_line_id?: number | null;
+          synced_at?: string | null;
+          source?: string;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      roles: {
+        Row: {
+          id: string;
+          name: string;
+          display_name: string;
+          description: string | null;
+          requires_subscription: boolean;
+          permissions: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          display_name: string;
+          description?: string | null;
+          requires_subscription?: boolean;
+          permissions?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          display_name?: string;
+          description?: string | null;
+          requires_subscription?: boolean;
+          permissions?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      subscription_types: {
+        Row: {
+          id: string;
+          name: string;
+          display_name: string;
+          description: string | null;
+          odoo_product_id: number | null;
+          grants_role_id: string;
+          category: SubscriptionCategory | null;
+          frequency: SubscriptionFrequency | null;
+          price_cents: number | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          display_name: string;
+          description?: string | null;
+          odoo_product_id?: number | null;
+          grants_role_id: string;
+          category?: SubscriptionCategory | null;
+          frequency?: SubscriptionFrequency | null;
+          price_cents?: number | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          display_name?: string;
+          description?: string | null;
+          odoo_product_id?: number | null;
+          grants_role_id?: string;
+          category?: SubscriptionCategory | null;
+          frequency?: SubscriptionFrequency | null;
+          price_cents?: number | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      profile_roles: {
+        Row: {
+          id: string;
+          profile_id: string;
+          role_id: string;
+          source: RoleSource;
+          source_id: string | null;
+          assigned_at: string;
+          expires_at: string | null;
+          assigned_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          role_id: string;
+          source: RoleSource;
+          source_id?: string | null;
+          assigned_at?: string;
+          expires_at?: string | null;
+          assigned_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          role_id?: string;
+          source?: RoleSource;
+          source_id?: string | null;
+          assigned_at?: string;
+          expires_at?: string | null;
+          assigned_by?: string | null;
         };
       };
     };
@@ -875,6 +1015,30 @@ export interface Database {
           medical_notes: string | null;
         };
       };
+      v_family_relations: {
+        Row: {
+          parent_profile_id: string;
+          parent_user_id: string | null;
+          parent_name: string;
+          child_profile_id: string;
+          child_name: string;
+          relation_type: string;
+          source: string;
+        };
+      };
+      v_profile_all_roles: {
+        Row: {
+          profile_id: string;
+          first_name: string;
+          last_name: string;
+          email: string | null;
+          is_minor: boolean;
+          is_autonomous: boolean;
+          is_admin: boolean;
+          is_coordinator: boolean;
+          roles: Json;
+        };
+      };
     };
     Functions: {
       create_event_with_groups: {
@@ -905,6 +1069,7 @@ export interface Database {
           group_name: string;
           relation: string;
           staff_role: string | null;
+          roles: Json;
         }[];
       };
     };
@@ -917,6 +1082,9 @@ export interface Database {
       event_schedule_type: EventScheduleType;
       chat_channel_type: ChatChannelType;
       membership_status: MembershipStatus;
+      role_source: RoleSource;
+      subscription_category: SubscriptionCategory;
+      subscription_frequency: SubscriptionFrequency;
     };
   };
 }
@@ -937,11 +1105,16 @@ export type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 export type WildApricotMember = Database["public"]["Tables"]["wild_apricot_members"]["Row"];
 export type UserDevice = Database["public"]["Tables"]["user_devices"]["Row"];
 export type Subscription = Database["public"]["Tables"]["subscriptions"]["Row"];
+export type Role = Database["public"]["Tables"]["roles"]["Row"];
+export type SubscriptionType = Database["public"]["Tables"]["subscription_types"]["Row"];
+export type ProfileRole = Database["public"]["Tables"]["profile_roles"]["Row"];
 
 // Types pour les vues
 export type EventStaffing = Database["public"]["Views"]["v_event_staffing"]["Row"];
 export type EventWithGroups = Database["public"]["Views"]["v_events_with_groups"]["Row"];
 export type GroupEmergencyContact = Database["public"]["Views"]["v_group_emergency_contacts"]["Row"];
+export type FamilyRelation = Database["public"]["Views"]["v_family_relations"]["Row"];
+export type ProfileAllRoles = Database["public"]["Views"]["v_profile_all_roles"]["Row"];
 
 // Types composés pour les requêtes avec relations
 export type EventWithGroup = Event & {
@@ -980,4 +1153,26 @@ export interface UserContext {
   group_name: string;
   relation: RelationType;
   staff_role: string | null;
+  roles: RoleInfo[];
+}
+
+// Type pour les permissions de rôle
+export interface RolePermissions {
+  can_view_calendar?: boolean;
+  can_take_attendance?: boolean;
+  can_chat_in_group?: boolean;
+  can_manage_members?: boolean;
+  can_manage_groups?: boolean;
+  can_manage_events?: boolean;
+  can_view_evaluations?: boolean;
+  can_create_evaluations?: boolean;
+  can_view_all_members?: boolean;
+  calendar_scope?: "own_groups" | "all_groups" | "assigned_groups";
+}
+
+// Type pour les infos de rôle retournées par get_user_contexts
+export interface RoleInfo {
+  role_name: string;
+  display_name: string;
+  permissions: RolePermissions;
 }
