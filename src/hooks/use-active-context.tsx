@@ -61,12 +61,23 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchGroup = useCallback(async (groupId: string) => {
-    const { data } = await supabase
-      .from("groups")
-      .select("*")
-      .eq("id", groupId)
-      .single();
-    return data as Group | null;
+    try {
+      const { data, error } = await supabase
+        .from("groups")
+        .select("*")
+        .eq("id", groupId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error("Erreur lors du chargement du groupe:", error);
+        return null;
+      }
+      
+      return data as Group | null;
+    } catch (err) {
+      console.error("Exception lors du chargement du groupe:", err);
+      return null;
+    }
   }, []);
 
   const loadActiveContext = useCallback(
@@ -145,6 +156,7 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
         setActiveContextState(null);
         setActiveGroup(null);
       }
+      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -205,21 +217,38 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
         setIsCoordinator(false);
         return;
       }
-      const { data } = await supabase
-        .from("user_profile_access")
-        .select("profile:profiles(role, is_admin, is_coordinator)")
-        .eq("user_id", user.id)
-        .eq("relation", "self")
-        .limit(1)
-        .single();
+      
+      try {
+        const { data, error } = await supabase
+          .from("user_profile_access")
+          .select("profile:profiles(role, is_admin, is_coordinator)")
+          .eq("user_id", user.id)
+          .eq("relation", "self")
+          .limit(1)
+          .maybeSingle();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const profileData = data as any;
-      if (profileData?.profile) {
-        const profile = profileData.profile as { role: string; is_admin?: boolean; is_coordinator?: boolean };
-        // Support both legacy role field and new is_admin/is_coordinator flags
-        setIsAdmin(profile.is_admin === true || profile.role === "admin");
-        setIsCoordinator(profile.is_coordinator === true || profile.role === "admin" || profile.role === "coach");
+        if (error) {
+          console.error("Erreur lors de la vérification du statut admin:", error);
+          setIsAdmin(false);
+          setIsCoordinator(false);
+          return;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profileData = data as any;
+        if (profileData?.profile) {
+          const profile = profileData.profile as { role: string; is_admin?: boolean; is_coordinator?: boolean };
+          // Support both legacy role field and new is_admin/is_coordinator flags
+          setIsAdmin(profile.is_admin === true || profile.role === "admin");
+          setIsCoordinator(profile.is_coordinator === true || profile.role === "admin" || profile.role === "coach");
+        } else {
+          setIsAdmin(false);
+          setIsCoordinator(false);
+        }
+      } catch (err) {
+        console.error("Exception lors de la vérification du statut admin:", err);
+        setIsAdmin(false);
+        setIsCoordinator(false);
       }
     }
     checkAdminStatus();
