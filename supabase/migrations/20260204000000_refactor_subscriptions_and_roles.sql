@@ -23,33 +23,72 @@ ADD COLUMN IF NOT EXISTS birthdate DATE,
 ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS is_coordinator BOOLEAN DEFAULT FALSE;
 
--- Créer la colonne is_minor (calculée)
--- Note: is_minor = TRUE si < 18 ans
+-- Ajouter is_minor et is_autonomous comme colonnes normales (pas générées)
+-- Ces valeurs seront maintenues par un trigger car age() n'est pas immutable
 ALTER TABLE public.profiles
-ADD COLUMN IF NOT EXISTS is_minor BOOLEAN GENERATED ALWAYS AS (
-  CASE 
+ADD COLUMN IF NOT EXISTS is_minor BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS is_autonomous BOOLEAN DEFAULT TRUE;
+
+-- Fonction pour calculer is_minor et is_autonomous
+CREATE OR REPLACE FUNCTION public.compute_profile_minor_autonomous()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_is_minor BOOLEAN;
+  v_is_autonomous BOOLEAN;
+BEGIN
+  -- Calculer is_minor (TRUE si < 18 ans)
+  IF NEW.birthdate IS NULL THEN
+    v_is_minor := FALSE;
+  ELSIF age(NEW.birthdate) < interval '18 years' THEN
+    v_is_minor := TRUE;
+  ELSE
+    v_is_minor := FALSE;
+  END IF;
+  
+  -- Calculer is_autonomous
+  -- TRUE si: majeur OU parent_odoo_id IS NULL (payeur) OU a un email
+  IF NOT v_is_minor THEN
+    -- Majeur = toujours autonome
+    v_is_autonomous := TRUE;
+  ELSIF NEW.parent_odoo_id IS NULL THEN
+    -- Mineur mais est le payeur = autonome
+    v_is_autonomous := TRUE;
+  ELSIF NEW.email IS NOT NULL AND NEW.email != '' THEN
+    -- Mineur mais a un email = autonome
+    v_is_autonomous := TRUE;
+  ELSE
+    -- Mineur sans email et pas payeur = pas autonome
+    v_is_autonomous := FALSE;
+  END IF;
+  
+  NEW.is_minor := v_is_minor;
+  NEW.is_autonomous := v_is_autonomous;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger pour calculer automatiquement is_minor et is_autonomous
+DROP TRIGGER IF EXISTS compute_profile_minor_autonomous_trigger ON public.profiles;
+CREATE TRIGGER compute_profile_minor_autonomous_trigger
+  BEFORE INSERT OR UPDATE OF birthdate, parent_odoo_id, email ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.compute_profile_minor_autonomous();
+
+-- Mettre à jour les profils existants
+UPDATE public.profiles SET 
+  is_minor = CASE 
     WHEN birthdate IS NULL THEN FALSE
     WHEN age(birthdate) < interval '18 years' THEN TRUE
     ELSE FALSE
-  END
-) STORED;
-
--- Créer la colonne is_autonomous
--- TRUE si: parent_odoo_id IS NULL (le payeur lui-même) OU a un email
--- FALSE par défaut si mineur
-ALTER TABLE public.profiles
-ADD COLUMN IF NOT EXISTS is_autonomous BOOLEAN GENERATED ALWAYS AS (
-  CASE
-    -- Si pas mineur, toujours autonome
+  END,
+  is_autonomous = CASE
     WHEN birthdate IS NULL OR age(birthdate) >= interval '18 years' THEN TRUE
-    -- Si mineur mais est le payeur (parent_odoo_id IS NULL), autonome
     WHEN parent_odoo_id IS NULL THEN TRUE
-    -- Si mineur mais a un email valide, autonome
     WHEN email IS NOT NULL AND email != '' THEN TRUE
-    -- Sinon, pas autonome
     ELSE FALSE
   END
-) STORED;
+WHERE birthdate IS NOT NULL OR parent_odoo_id IS NOT NULL OR email IS NOT NULL;
 
 -- Index pour parent_odoo_id (pour les jointures relations familiales)
 CREATE INDEX IF NOT EXISTS idx_profiles_parent_odoo_id ON public.profiles(parent_odoo_id);
@@ -634,15 +673,17 @@ COMMENT ON TABLE public.subscription_types IS 'Catalogue des types d''abonnement
 
 COMMENT ON TABLE public.profile_roles IS 'Assignation effective des rôles aux profils. Permet de traquer d''où vient chaque rôle (subscription, group_staff, manuel).';
 
-COMMENT ON COLUMN public.profiles.is_minor IS 'TRUE si l''âge calculé depuis birthdate est < 18 ans. Calculé automatiquement.';
+COMMENT ON COLUMN public.profiles.is_minor IS 'TRUE si l''âge calculé depuis birthdate est < 18 ans. Maintenu par trigger compute_profile_minor_autonomous_trigger.';
 
-COMMENT ON COLUMN public.profiles.is_autonomous IS 'TRUE si: majeur OU parent_odoo_id IS NULL (payeur) OU a un email. Peut être modifié par le parent pour forcer l''autonomie.';
+COMMENT ON COLUMN public.profiles.is_autonomous IS 'TRUE si: majeur OU parent_odoo_id IS NULL (payeur) OU a un email. Maintenu par trigger, peut être forcé manuellement par le parent.';
 
 COMMENT ON COLUMN public.profiles.parent_odoo_id IS 'Référence au res.partner.parent_id Odoo (le payeur). Permet de dériver automatiquement les relations familiales.';
 
 COMMENT ON VIEW public.v_family_relations IS 'Vue dérivée des relations parent/enfant depuis profiles.parent_odoo_id. Remplace partiellement user_profile_access pour les cas Odoo.';
 
 COMMENT ON FUNCTION public.grant_role_from_subscription IS 'Trigger qui assigne automatiquement le rôle correspondant quand une subscription est créée/modifiée.';
+
+COMMENT ON FUNCTION public.compute_profile_minor_autonomous IS 'Trigger qui calcule is_minor et is_autonomous lors de l''insertion/mise à jour d''un profil.';
 
 -- ==============================================================================
 -- FIN DE LA MIGRATION
