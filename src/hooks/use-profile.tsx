@@ -23,6 +23,7 @@ interface ProfileContextType {
   isLoading: boolean;
   isCoach: boolean;
   isAdmin: boolean;
+  isCoordinator: boolean;
   isParent: boolean;
   hasChildren: boolean;
   refetch: () => Promise<void>;
@@ -49,6 +50,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.error("Erreur lors du chargement des profils:", error.message || error);
         console.error("Détails:", error);
+        setProfiles([]);
+        setActiveProfile(null);
         return;
       }
 
@@ -66,9 +69,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         // Définir le profil actif (self en priorité)
         const selfProfile = profileAccess.find((p) => p.relation === "self");
         setActiveProfile(selfProfile?.profile || profileAccess[0]?.profile || null);
+      } else {
+        // Pas de profils trouvés
+        setProfiles([]);
+        setActiveProfile(null);
       }
     } catch (err) {
       console.error("Exception lors du chargement des profils:", err);
+      setProfiles([]);
+      setActiveProfile(null);
     }
   }, []);
 
@@ -104,8 +113,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [fetchProfiles]);
 
-  const isCoach = activeProfile?.role === "coach" || activeProfile?.role === "admin";
-  const isAdmin = activeProfile?.role === "admin";
+  const isCoach = activeProfile?.role === "coach" || activeProfile?.role === "admin" || activeProfile?.is_coordinator === true;
+  const isAdmin = activeProfile?.role === "admin" || activeProfile?.is_admin === true;
+  const isCoordinator = activeProfile?.is_coordinator === true || activeProfile?.role === "admin" || activeProfile?.role === "coach";
   // Vérifie si l'utilisateur a accès à des profils d'enfants (relation parent ou guardian)
   const hasChildren = profiles.some((p) => p.relation === "parent" || p.relation === "guardian");
   // Vérifie si le profil actif est celui d'un parent (self avec accès enfants ou role explicitement parent)
@@ -122,6 +132,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         isLoading,
         isCoach,
         isAdmin,
+        isCoordinator,
         isParent,
         hasChildren,
         refetch,
