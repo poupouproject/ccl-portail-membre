@@ -959,6 +959,47 @@ export interface Database {
           assigned_by?: string | null;
         };
       };
+      group_lesson_plans: {
+        Row: {
+          id: string;
+          group_id: string;
+          author_id: string;
+          title: string;
+          content: string;
+          session_date: string | null;
+          duration_minutes: number | null;
+          objectives: string | null;
+          materials: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          author_id: string;
+          title: string;
+          content: string;
+          session_date?: string | null;
+          duration_minutes?: number | null;
+          objectives?: string | null;
+          materials?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          author_id?: string;
+          title?: string;
+          content?: string;
+          session_date?: string | null;
+          duration_minutes?: number | null;
+          objectives?: string | null;
+          materials?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       v_event_staffing: {
@@ -1108,6 +1149,7 @@ export type Subscription = Database["public"]["Tables"]["subscriptions"]["Row"];
 export type Role = Database["public"]["Tables"]["roles"]["Row"];
 export type SubscriptionType = Database["public"]["Tables"]["subscription_types"]["Row"];
 export type ProfileRole = Database["public"]["Tables"]["profile_roles"]["Row"];
+export type GroupLessonPlan = Database["public"]["Tables"]["group_lesson_plans"]["Row"];
 
 // Types pour les vues
 export type EventStaffing = Database["public"]["Views"]["v_event_staffing"]["Row"];

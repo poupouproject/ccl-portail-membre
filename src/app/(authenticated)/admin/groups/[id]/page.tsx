@@ -44,6 +44,10 @@ import {
   AlertCircle,
   Send,
   StickyNote,
+  ClipboardList,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import type { Group, Profile } from "@/types/database";
 import { getCategoryLabel, getCategoryBadgeColor, getInitials, getStaffRoleLabel } from "@/lib/utils";
@@ -102,6 +106,21 @@ interface ChatMessage {
   author?: Profile;
 }
 
+interface LessonPlan {
+  id: string;
+  group_id: string;
+  author_id: string;
+  title: string;
+  content: string;
+  session_date: string | null;
+  duration_minutes: number | null;
+  objectives: string | null;
+  materials: string | null;
+  created_at: string;
+  updated_at: string;
+  author?: Profile;
+}
+
 const STAFF_ROLES = [
   { value: "head_coach", label: "Coach Lead" },
   { value: "assistant", label: "Assistant" },
@@ -124,6 +143,7 @@ export default function GroupDetailPage() {
   const [coachAbsences, setCoachAbsences] = useState<CoachAbsence[]>([]);
   const [notes, setNotes] = useState<GroupNote[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>([]);
   const [nextEvent, setNextEvent] = useState<any>(null);
   const [attendances, setAttendances] = useState<any[]>([]);
 
@@ -135,6 +155,8 @@ export default function GroupDetailPage() {
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
   const [isChangeRequestOpen, setIsChangeRequestOpen] = useState(false);
   const [isAbsenceOpen, setIsAbsenceOpen] = useState(false);
+  const [isLessonPlanOpen, setIsLessonPlanOpen] = useState(false);
+  const [editingLessonPlan, setEditingLessonPlan] = useState<LessonPlan | null>(null);
 
   // Forms
   const [selectedMemberId, setSelectedMemberId] = useState("");
@@ -148,6 +170,14 @@ export default function GroupDetailPage() {
   const [absenceForm, setAbsenceForm] = useState({
     date: "",
     reason: "",
+  });
+  const [lessonPlanForm, setLessonPlanForm] = useState({
+    title: "",
+    content: "",
+    session_date: "",
+    duration_minutes: "",
+    objectives: "",
+    materials: "",
   });
   const [newNote, setNewNote] = useState("");
   const [newMessage, setNewMessage] = useState("");
@@ -262,6 +292,22 @@ export default function GroupDetailPage() {
 
       // Récupérer les absences de coachs (simulé)
       setCoachAbsences([]);
+
+      // Récupérer les plans de cours du groupe
+      const { data: lessonPlansData } = await (supabase as any)
+        .from("group_lesson_plans")
+        .select(`
+          *,
+          profiles:author_id(id, first_name, last_name, email, role)
+        `)
+        .eq("group_id", groupId)
+        .order("session_date", { ascending: false, nullsFirst: false });
+      setLessonPlans(
+        (lessonPlansData || []).map((lp: any) => ({
+          ...lp,
+          author: lp.profiles,
+        }))
+      );
 
     } catch (error) {
       console.error("Erreur:", error);
@@ -407,6 +453,113 @@ export default function GroupDetailPage() {
     // TODO: Implémenter la table group_chat
   }
 
+  async function handleSaveLessonPlan() {
+    if (!lessonPlanForm.title.trim() || !lessonPlanForm.content.trim()) {
+      toast({ title: "Erreur", description: "Le titre et le contenu sont requis", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // Get current user's profile
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Non authentifié");
+
+      const { data: profile } = await (supabase as any)
+        .from("profiles")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .single();
+
+      if (!profile) throw new Error("Profil non trouvé");
+
+      const lessonPlanData = {
+        group_id: groupId,
+        author_id: profile.id,
+        title: lessonPlanForm.title.trim(),
+        content: lessonPlanForm.content.trim(),
+        session_date: lessonPlanForm.session_date || null,
+        duration_minutes: lessonPlanForm.duration_minutes ? parseInt(lessonPlanForm.duration_minutes) : null,
+        objectives: lessonPlanForm.objectives.trim() || null,
+        materials: lessonPlanForm.materials.trim() || null,
+      };
+
+      if (editingLessonPlan) {
+        // Update existing lesson plan
+        const { error } = await (supabase as any)
+          .from("group_lesson_plans")
+          .update({
+            ...lessonPlanData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editingLessonPlan.id);
+
+        if (error) throw error;
+        toast({ title: "Plan de cours mis à jour" });
+      } else {
+        // Create new lesson plan
+        const { error } = await (supabase as any)
+          .from("group_lesson_plans")
+          .insert(lessonPlanData);
+
+        if (error) throw error;
+        toast({ title: "Plan de cours créé" });
+      }
+
+      resetLessonPlanForm();
+      setIsLessonPlanOpen(false);
+      fetchGroupData();
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({ title: "Erreur", description: "Impossible de sauvegarder le plan de cours", variant: "destructive" });
+    }
+  }
+
+  async function handleDeleteLessonPlan(planId: string) {
+    try {
+      const { error } = await (supabase as any)
+        .from("group_lesson_plans")
+        .delete()
+        .eq("id", planId);
+
+      if (error) throw error;
+      toast({ title: "Plan de cours supprimé" });
+      fetchGroupData();
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({ title: "Erreur", description: "Impossible de supprimer le plan de cours", variant: "destructive" });
+    }
+  }
+
+  function handleEditLessonPlan(plan: LessonPlan) {
+    setEditingLessonPlan(plan);
+    setLessonPlanForm({
+      title: plan.title,
+      content: plan.content,
+      session_date: plan.session_date || "",
+      duration_minutes: plan.duration_minutes?.toString() || "",
+      objectives: plan.objectives || "",
+      materials: plan.materials || "",
+    });
+    setIsLessonPlanOpen(true);
+  }
+
+  function resetLessonPlanForm() {
+    setLessonPlanForm({
+      title: "",
+      content: "",
+      session_date: "",
+      duration_minutes: "",
+      objectives: "",
+      materials: "",
+    });
+    setEditingLessonPlan(null);
+  }
+
+  function openNewLessonPlan() {
+    resetLessonPlanForm();
+    setIsLessonPlanOpen(true);
+  }
+
   function getAttendanceStatus(profileId: string) {
     const attendance = attendances.find((a) => a.profile_id === profileId);
     if (!attendance) return null;
@@ -543,22 +696,26 @@ export default function GroupDetailPage() {
 
       {/* Onglets principaux */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="members" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Membres
+            <span className="hidden sm:inline">Membres</span>
           </TabsTrigger>
           <TabsTrigger value="staff" className="flex items-center gap-2">
             <UserPlus className="h-4 w-4" />
-            Coachs
+            <span className="hidden sm:inline">Coachs</span>
+          </TabsTrigger>
+          <TabsTrigger value="plans" className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4" />
+            <span className="hidden sm:inline">Plans</span>
           </TabsTrigger>
           <TabsTrigger value="chat" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
-            Discussion
+            <span className="hidden sm:inline">Discussion</span>
           </TabsTrigger>
           <TabsTrigger value="notes" className="flex items-center gap-2">
             <StickyNote className="h-4 w-4" />
-            Notes
+            <span className="hidden sm:inline">Notes</span>
           </TabsTrigger>
         </TabsList>
 
@@ -690,6 +847,113 @@ export default function GroupDetailPage() {
                           <X className="h-4 w-4" />
                         </Button>
                       )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Onglet Plans de cours */}
+        <TabsContent value="plans" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Plans de cours ({lessonPlans.length})</h3>
+            {(isCoach || isAdmin) && (
+              <Button onClick={openNewLessonPlan} className="bg-club-orange hover:bg-club-orange/90">
+                <Plus className="h-4 w-4 mr-2" />
+                Nouveau plan
+              </Button>
+            )}
+          </div>
+
+          <div className="grid gap-4">
+            {lessonPlans.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <ClipboardList className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Aucun plan de cours</p>
+                  {(isCoach || isAdmin) && (
+                    <p className="text-sm mt-2">
+                      Créez votre premier plan de cours pour ce groupe
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              lessonPlans.map((plan) => (
+                <Card key={plan.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg">{plan.title}</CardTitle>
+                        <CardDescription className="flex flex-wrap items-center gap-2">
+                          {plan.session_date && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(plan.session_date).toLocaleDateString("fr-CA", {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "long",
+                              })}
+                            </span>
+                          )}
+                          {plan.duration_minutes && (
+                            <Badge variant="secondary">{plan.duration_minutes} min</Badge>
+                          )}
+                        </CardDescription>
+                      </div>
+                      {(isCoach || isAdmin) && (
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditLessonPlan(plan)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteLessonPlan(plan.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <p className="text-sm whitespace-pre-wrap">{plan.content}</p>
+                    </div>
+                    
+                    {plan.objectives && (
+                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                        <p className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                          🎯 Objectifs
+                        </p>
+                        <p className="text-sm">{plan.objectives}</p>
+                      </div>
+                    )}
+
+                    {plan.materials && (
+                      <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+                        <p className="text-xs font-medium text-amber-800 dark:text-amber-200 mb-1">
+                          🛠️ Matériel
+                        </p>
+                        <p className="text-sm">{plan.materials}</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+                      <span>
+                        Par {plan.author?.first_name} {plan.author?.last_name}
+                      </span>
+                      <span>
+                        {new Date(plan.created_at).toLocaleDateString("fr-CA")}
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
@@ -998,6 +1262,94 @@ export default function GroupDetailPage() {
             </Button>
             <Button onClick={handleReportAbsence} className="bg-club-orange hover:bg-club-orange/90">
               Signaler l'absence
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Plan de cours */}
+      <Dialog open={isLessonPlanOpen} onOpenChange={(open) => {
+        setIsLessonPlanOpen(open);
+        if (!open) resetLessonPlanForm();
+      }}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingLessonPlan ? "Modifier le plan de cours" : "Nouveau plan de cours"}
+            </DialogTitle>
+            <DialogDescription>
+              Créez un plan de cours détaillé pour votre groupe
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-2">
+              <Label>Titre *</Label>
+              <Input
+                placeholder="Ex: Séance technique - Virages"
+                value={lessonPlanForm.title}
+                onChange={(e) => setLessonPlanForm({ ...lessonPlanForm, title: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date de séance</Label>
+                <Input
+                  type="date"
+                  value={lessonPlanForm.session_date}
+                  onChange={(e) => setLessonPlanForm({ ...lessonPlanForm, session_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Durée (minutes)</Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 90"
+                  value={lessonPlanForm.duration_minutes}
+                  onChange={(e) => setLessonPlanForm({ ...lessonPlanForm, duration_minutes: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Contenu du plan *</Label>
+              <Textarea
+                placeholder="Décrivez le déroulement de la séance..."
+                value={lessonPlanForm.content}
+                onChange={(e) => setLessonPlanForm({ ...lessonPlanForm, content: e.target.value })}
+                rows={5}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Objectifs</Label>
+              <Textarea
+                placeholder="Quels sont les objectifs de cette séance ?"
+                value={lessonPlanForm.objectives}
+                onChange={(e) => setLessonPlanForm({ ...lessonPlanForm, objectives: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Matériel nécessaire</Label>
+              <Textarea
+                placeholder="Liste du matériel requis..."
+                value={lessonPlanForm.materials}
+                onChange={(e) => setLessonPlanForm({ ...lessonPlanForm, materials: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsLessonPlanOpen(false);
+              resetLessonPlanForm();
+            }}>
+              Annuler
+            </Button>
+            <Button 
+              onClick={handleSaveLessonPlan} 
+              disabled={!lessonPlanForm.title.trim() || !lessonPlanForm.content.trim()}
+              className="bg-club-orange hover:bg-club-orange/90"
+            >
+              {editingLessonPlan ? "Mettre à jour" : "Créer"}
             </Button>
           </DialogFooter>
         </DialogContent>
