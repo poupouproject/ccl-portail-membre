@@ -909,14 +909,20 @@ export default function GroupDetailPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEditLessonPlan(plan)}
+                            aria-label="Modifier le plan de cours"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteLessonPlan(plan.id)}
+                            onClick={() => {
+                              if (window.confirm("Êtes-vous sûr de vouloir supprimer ce plan de cours ?")) {
+                                handleDeleteLessonPlan(plan.id);
+                              }
+                            }}
                             className="text-destructive hover:text-destructive"
+                            aria-label="Supprimer le plan de cours"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
