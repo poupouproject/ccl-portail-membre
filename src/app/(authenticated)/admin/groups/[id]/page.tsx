@@ -497,10 +497,19 @@ export default function GroupDetailPage() {
     // TODO: Implémenter la table group_chat
   }
 
+  // Map of field names to their override counterparts
+  const overrideFieldMap = {
+    'title': 'title_override',
+    'content': 'content_override',
+    'duration_minutes': 'duration_override',
+    'objectives': 'objectives_override',
+    'materials': 'materials_override',
+  } as const;
+
   // Helper function to get display values (override or template value)
-  function getPlanDisplayValue(plan: LessonPlan, field: 'title' | 'content' | 'duration_minutes' | 'objectives' | 'materials') {
-    const overrideField = `${field}_override` as keyof LessonPlan;
-    const overrideValue = plan[overrideField];
+  function getPlanDisplayValue(plan: LessonPlan, field: keyof typeof overrideFieldMap) {
+    const overrideField = overrideFieldMap[field];
+    const overrideValue = plan[overrideField as keyof LessonPlan];
     if (overrideValue !== null && overrideValue !== undefined) {
       return overrideValue;
     }
@@ -1021,7 +1030,7 @@ export default function GroupDetailPage() {
                 const duration = getPlanDisplayValue(plan, 'duration_minutes') as number | null;
                 const objectives = getPlanDisplayValue(plan, 'objectives') as string | null;
                 const materials = getPlanDisplayValue(plan, 'materials') as string | null;
-                const isCustomized = plan.title_override || plan.content_override || plan.duration_override || plan.objectives_override || plan.materials_override;
+                const isCustomized = plan.title_override !== null || plan.content_override !== null || plan.duration_override !== null || plan.objectives_override !== null || plan.materials_override !== null;
 
                 return (
                   <Card 
@@ -1164,7 +1173,10 @@ export default function GroupDetailPage() {
 
                       <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
                         <span>
-                          Appliqué par {plan.appliedByProfile?.first_name} {plan.appliedByProfile?.last_name}
+                          {plan.appliedByProfile 
+                            ? `Appliqué par ${plan.appliedByProfile.first_name} ${plan.appliedByProfile.last_name}`
+                            : "Appliqué par l'administration"
+                          }
                         </span>
                         <span>
                           {new Date(plan.created_at).toLocaleDateString("fr-CA")}
