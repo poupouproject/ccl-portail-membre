@@ -33,7 +33,10 @@ export default function CalendarPage() {
 
   useEffect(() => {
     async function fetchEvents() {
-      if (!activeProfile) return;
+      if (!activeProfile) {
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
 

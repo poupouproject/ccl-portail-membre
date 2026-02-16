@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, ChevronDown, Bike, GraduationCap } from "lucide-react";
+import { Users, ChevronDown, Bike, GraduationCap, Shield } from "lucide-react";
 import { useActiveContext } from "@/hooks/use-active-context";
 import {
   DropdownMenu,
@@ -32,7 +32,7 @@ function getContextBadgeVariant(context: UserContext) {
 }
 
 export function ContextSelector() {
-  const { contexts, activeContext, setActiveContext, isLoading, hasMultipleContexts } =
+  const { contexts, activeContext, setActiveContext, isLoading, hasMultipleContexts, isAdmin } =
     useActiveContext();
 
   if (isLoading) {
@@ -51,6 +51,9 @@ export function ContextSelector() {
         <span className="font-medium text-sm">
           {activeContext.profile_name.split(" ")[0]}
         </span>
+        {isAdmin && (
+          <Shield className="h-3 w-3 text-red-500" aria-label="Admin" />
+        )}
         <Badge variant={getContextBadgeVariant(activeContext)} className="text-xs">
           {activeContext.group_name}
         </Badge>
@@ -68,9 +71,14 @@ export function ContextSelector() {
       <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-accent hover:text-accent-foreground rounded-md px-2 py-1.5 transition-colors">
         {getContextIcon(activeContext)}
         <div className="flex flex-col items-start">
-          <span className="font-medium text-sm leading-none">
-            {activeContext.profile_name.split(" ")[0]}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-sm leading-none">
+              {activeContext.profile_name.split(" ")[0]}
+            </span>
+            {isAdmin && (
+              <Shield className="h-3 w-3 text-red-500" aria-label="Admin" />
+            )}
+          </div>
           <span className="text-xs text-muted-foreground leading-tight">
             {activeContext.group_name}
           </span>

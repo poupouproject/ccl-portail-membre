@@ -35,7 +35,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchDashboardData() {
-      if (!activeProfile) return;
+      if (!activeProfile) {
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
 

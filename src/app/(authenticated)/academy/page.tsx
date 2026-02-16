@@ -31,7 +31,10 @@ export default function AcademyPage() {
 
   useEffect(() => {
     async function fetchAcademyData() {
-      if (!activeProfile) return;
+      if (!activeProfile) {
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
 
