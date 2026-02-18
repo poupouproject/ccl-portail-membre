@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { useActiveContext } from "@/hooks/use-active-context";
@@ -32,36 +32,61 @@ export default function DashboardPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Références stables pour éviter les race conditions
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const fetchIdRef = useRef(0);
+
+  // Utiliser des IDs stables comme dépendances
+  const activeProfileId = activeProfile?.id;
+  const activeContextGroupId = activeContext?.group_id;
 
   useEffect(() => {
+    // Annuler la requête précédente si elle existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Créer un nouvel AbortController
+    abortControllerRef.current = new AbortController();
+    const currentFetchId = ++fetchIdRef.current;
+    
     async function fetchDashboardData() {
-      if (!activeProfile) {
+      if (!activeProfileId) {
         setIsLoading(false);
         return;
       }
 
+      // Réinitialiser les états immédiatement pour éviter les données périmées
+      setNextEvent(null);
       setIsLoading(true);
 
       try {
+        // Vérifier si cette requête est toujours valide
+        if (currentFetchId !== fetchIdRef.current) return;
+        
         // Si on a un contexte actif avec un groupe, utiliser ce groupe
         // Sinon, utiliser l'ancienne méthode avec group_members
         let groupIds: string[] = [];
         
-        if (activeContext?.group_id) {
+        if (activeContextGroupId) {
           // Utiliser le groupe du contexte actif
-          groupIds = [activeContext.group_id];
+          groupIds = [activeContextGroupId];
         } else {
           // Fallback: récupérer les groupes via group_members
           const { data: groupMembershipsData } = await supabase
             .from("group_members")
             .select("group_id, groups(*)")
-            .eq("profile_id", activeProfile.id);
+            .eq("profile_id", activeProfileId);
 
           const groupMemberships = groupMembershipsData as GroupMembership[] | null;
           if (groupMemberships && groupMemberships.length > 0) {
             groupIds = groupMemberships.map((m) => m.group_id);
           }
         }
+
+        // Vérifier si cette requête est toujours valide après l'await
+        if (currentFetchId !== fetchIdRef.current) return;
 
         // Récupérer le prochain événement via event_groups
         if (groupIds.length > 0) {
@@ -85,6 +110,9 @@ export default function DashboardPage() {
               .limit(1)
               .maybeSingle();
 
+            // Vérifier si cette requête est toujours valide
+            if (currentFetchId !== fetchIdRef.current) return;
+
             if (eventData) {
               setNextEvent(eventData as unknown as EventWithDetails);
             }
@@ -100,10 +128,16 @@ export default function DashboardPage() {
             .limit(1)
             .maybeSingle();
 
+          // Vérifier si cette requête est toujours valide
+          if (currentFetchId !== fetchIdRef.current) return;
+
           if (eventData) {
             setNextEvent(eventData as unknown as EventWithDetails);
           }
         }
+
+        // Vérifier avant les annonces
+        if (currentFetchId !== fetchIdRef.current) return;
 
         // Récupérer les annonces
         const { data: announcementsData } = await supabase
@@ -113,6 +147,8 @@ export default function DashboardPage() {
           .order("is_pinned", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(10);
+
+        if (currentFetchId !== fetchIdRef.current) return;
 
         if (announcementsData) {
           setAnnouncements(announcementsData);
@@ -125,18 +161,32 @@ export default function DashboardPage() {
           .eq("is_active", true)
           .order("tier", { ascending: true });
 
+        if (currentFetchId !== fetchIdRef.current) return;
+
         if (partnersData) {
           setPartners(partnersData);
         }
       } catch (error) {
+        // Ignorer les erreurs si la requête a été annulée
+        if (currentFetchId !== fetchIdRef.current) return;
         console.error("Erreur lors du chargement des données:", error);
       } finally {
-        setIsLoading(false);
+        // Ne mettre à jour l'état loading que si c'est toujours la requête active
+        if (currentFetchId === fetchIdRef.current) {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchDashboardData();
-  }, [activeProfile, activeContext]);
+    
+    // Cleanup: invalider cette requête si les dépendances changent
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [activeProfileId, activeContextGroupId, isCoach]);
 
   if (profileLoading || contextLoading || isLoading) {
     return (

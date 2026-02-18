@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { useActiveContext } from "@/hooks/use-active-context";
@@ -30,29 +30,44 @@ export default function CalendarPage() {
   const [upcomingEvents, setUpcomingEvents] = useState<EventWithDetails[]>([]);
   const [pastEvents, setPastEvents] = useState<EventWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Références stables pour éviter les race conditions
+  const fetchIdRef = useRef(0);
+  
+  // Utiliser des IDs stables comme dépendances
+  const activeProfileId = activeProfile?.id;
+  const activeContextGroupId = activeContext?.group_id;
 
   useEffect(() => {
+    const currentFetchId = ++fetchIdRef.current;
+    
     async function fetchEvents() {
-      if (!activeProfile) {
+      if (!activeProfileId) {
         setIsLoading(false);
         return;
       }
 
+      // Réinitialiser les états immédiatement
+      setUpcomingEvents([]);
+      setPastEvents([]);
       setIsLoading(true);
 
       try {
+        // Vérifier si cette requête est toujours valide
+        if (currentFetchId !== fetchIdRef.current) return;
+        
         const now = new Date().toISOString();
         let groupIds: string[] = [];
 
         // Si on a un contexte actif avec un groupe, utiliser ce groupe
-        if (activeContext?.group_id) {
-          groupIds = [activeContext.group_id];
+        if (activeContextGroupId) {
+          groupIds = [activeContextGroupId];
         } else {
           // Fallback: récupérer les groupes via group_members
           const { data: groupMembershipsData } = await supabase
             .from("group_members")
             .select("group_id")
-            .eq("profile_id", activeProfile.id);
+            .eq("profile_id", activeProfileId);
 
           const groupMemberships = groupMembershipsData as GroupMembership[] | null;
           if (groupMemberships && groupMemberships.length > 0) {
@@ -60,11 +75,16 @@ export default function CalendarPage() {
           }
         }
 
+        // Vérifier si cette requête est toujours valide
+        if (currentFetchId !== fetchIdRef.current) return;
+
         // Si l'utilisateur n'a pas de groupe mais est coach, montrer tous les événements
         if (groupIds.length === 0 && !isCoach) {
-          setUpcomingEvents([]);
-          setPastEvents([]);
-          setIsLoading(false);
+          if (currentFetchId === fetchIdRef.current) {
+            setUpcomingEvents([]);
+            setPastEvents([]);
+            setIsLoading(false);
+          }
           return;
         }
 
@@ -83,6 +103,9 @@ export default function CalendarPage() {
           }
         }
 
+        // Vérifier si cette requête est toujours valide
+        if (currentFetchId !== fetchIdRef.current) return;
+
         // Événements à venir
         let upcomingQuery = supabase
           .from("events")
@@ -96,13 +119,18 @@ export default function CalendarPage() {
         if (!isCoach && eventIds.length > 0) {
           upcomingQuery = upcomingQuery.in("id", eventIds);
         } else if (!isCoach && eventIds.length === 0) {
-          setUpcomingEvents([]);
-          setPastEvents([]);
-          setIsLoading(false);
+          if (currentFetchId === fetchIdRef.current) {
+            setUpcomingEvents([]);
+            setPastEvents([]);
+            setIsLoading(false);
+          }
           return;
         }
 
         const { data: upcoming } = await upcomingQuery;
+
+        // Vérifier si cette requête est toujours valide
+        if (currentFetchId !== fetchIdRef.current) return;
 
         if (upcoming) {
           setUpcomingEvents(upcoming as unknown as EventWithDetails[]);
@@ -119,25 +147,33 @@ export default function CalendarPage() {
         if (!isCoach && eventIds.length > 0) {
           pastQuery = pastQuery.in("id", eventIds);
         } else if (!isCoach && eventIds.length === 0) {
-          setPastEvents([]);
-          setIsLoading(false);
+          if (currentFetchId === fetchIdRef.current) {
+            setPastEvents([]);
+            setIsLoading(false);
+          }
           return;
         }
 
         const { data: past } = await pastQuery;
 
+        // Vérifier si cette requête est toujours valide
+        if (currentFetchId !== fetchIdRef.current) return;
+
         if (past) {
           setPastEvents(past as unknown as EventWithDetails[]);
         }
       } catch (error) {
+        if (currentFetchId !== fetchIdRef.current) return;
         console.error("Erreur lors du chargement des événements:", error);
       } finally {
-        setIsLoading(false);
+        if (currentFetchId === fetchIdRef.current) {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchEvents();
-  }, [activeProfile, activeContext]);
+  }, [activeProfileId, activeContextGroupId, isCoach]);
 
   if (profileLoading || contextLoading || isLoading) {
     return (
