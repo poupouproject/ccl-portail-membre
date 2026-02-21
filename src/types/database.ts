@@ -959,6 +959,109 @@ export interface Database {
           assigned_by?: string | null;
         };
       };
+      lesson_plan_templates: {
+        Row: {
+          id: string;
+          author_id: string;
+          title: string;
+          content: string;
+          duration_minutes: number | null;
+          objectives: string | null;
+          materials: string | null;
+          category: GroupCategory | null;
+          level_min: number;
+          level_max: number;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          author_id: string;
+          title: string;
+          content: string;
+          duration_minutes?: number | null;
+          objectives?: string | null;
+          materials?: string | null;
+          category?: GroupCategory | null;
+          level_min?: number;
+          level_max?: number;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          author_id?: string;
+          title?: string;
+          content?: string;
+          duration_minutes?: number | null;
+          objectives?: string | null;
+          materials?: string | null;
+          category?: GroupCategory | null;
+          level_min?: number;
+          level_max?: number;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      group_lesson_plans: {
+        Row: {
+          id: string;
+          group_id: string;
+          template_id: string | null;
+          applied_by: string;
+          session_date: string | null;
+          title_override: string | null;
+          content_override: string | null;
+          duration_override: number | null;
+          objectives_override: string | null;
+          materials_override: string | null;
+          is_cancelled: boolean;
+          cancellation_reason: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          template_id?: string | null;
+          applied_by: string;
+          session_date?: string | null;
+          title_override?: string | null;
+          content_override?: string | null;
+          duration_override?: number | null;
+          objectives_override?: string | null;
+          materials_override?: string | null;
+          is_cancelled?: boolean;
+          cancellation_reason?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          template_id?: string | null;
+          applied_by?: string;
+          session_date?: string | null;
+          title_override?: string | null;
+          content_override?: string | null;
+          duration_override?: number | null;
+          objectives_override?: string | null;
+          materials_override?: string | null;
+          is_cancelled?: boolean;
+          cancellation_reason?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       v_event_staffing: {
@@ -1108,6 +1211,8 @@ export type Subscription = Database["public"]["Tables"]["subscriptions"]["Row"];
 export type Role = Database["public"]["Tables"]["roles"]["Row"];
 export type SubscriptionType = Database["public"]["Tables"]["subscription_types"]["Row"];
 export type ProfileRole = Database["public"]["Tables"]["profile_roles"]["Row"];
+export type LessonPlanTemplate = Database["public"]["Tables"]["lesson_plan_templates"]["Row"];
+export type GroupLessonPlan = Database["public"]["Tables"]["group_lesson_plans"]["Row"];
 
 // Types pour les vues
 export type EventStaffing = Database["public"]["Views"]["v_event_staffing"]["Row"];

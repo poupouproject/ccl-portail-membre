@@ -2,33 +2,40 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Calendar, GraduationCap, MessageSquare, Shield } from "lucide-react";
+import { Home, Calendar, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useProfile } from "@/hooks/use-profile";
+import { useGetIdentity, usePermissions } from "@refinedev/core";
+import type { Profile } from "@/types/database";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: ("admin" | "coach" | "athlete")[];
+  requiresStaff?: boolean;
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Accueil", icon: Home },
   { href: "/calendar", label: "Agenda", icon: Calendar },
   { href: "/team", label: "Équipe", icon: MessageSquare },
-  { href: "/academy", label: "Académie", icon: GraduationCap, roles: ["admin", "coach"] },
-  { href: "/admin", label: "Admin", icon: Shield, roles: ["admin", "coach"] },
+  { href: "/admin", label: "Admin", icon: Shield, requiresStaff: true },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { activeProfile, isLoading } = useProfile();
+  const { data: identity, isLoading } = useGetIdentity<{ profile: Profile }>({});
+  const { data: permissions } = usePermissions<{
+    isAdmin: boolean;
+    isCoach: boolean;
+  }>({});
+
+  const isAdmin = permissions?.isAdmin ?? false;
+  const isCoach = permissions?.isCoach ?? false;
 
   const filteredNavItems = navItems.filter((item) => {
-    if (!item.roles) return true;
-    if (isLoading || !activeProfile) return false;
-    return item.roles.includes(activeProfile.role as "admin" | "coach" | "athlete");
+    if (!item.requiresStaff) return true;
+    if (isLoading || !identity) return false;
+    return isAdmin || isCoach;
   });
 
   return (

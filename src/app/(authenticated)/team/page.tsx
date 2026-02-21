@@ -63,6 +63,17 @@ export default function TeamPage() {
   const [isSending, setIsSending] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("chat");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Counter to force re-fetch when context changes
+  const [contextChangeCounter, setContextChangeCounter] = useState(0);
+
+  // Listen for context changes to refresh data
+  useEffect(() => {
+    function handleContextChange() {
+      setContextChangeCounter((c) => c + 1);
+    }
+    window.addEventListener("context-changed", handleContextChange);
+    return () => window.removeEventListener("context-changed", handleContextChange);
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     if (!user) return;
@@ -181,7 +192,7 @@ export default function TeamPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchMessages, fetchMyGroups]);
+  }, [fetchMessages, fetchMyGroups, contextChangeCounter]);
 
   useEffect(() => {
     // Auto-scroll vers le bas

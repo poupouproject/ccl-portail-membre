@@ -1,7 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { supabase } from "@/lib/supabase";
+import { useGetIdentity, usePermissions } from "@refinedev/core";
 import type { User } from "@supabase/supabase-js";
 import type { Profile, RelationType } from "@/types/database";
 
@@ -10,9 +9,20 @@ interface ProfileAccess {
   relation: RelationType;
 }
 
-interface ProfileAccessRow {
-  relation: string;
-  profile: Profile | null;
+interface IdentityData {
+  id: string;
+  name: string;
+  avatar: string | null;
+  profile: Profile;
+  profiles: ProfileAccess[];
+  user: User;
+}
+
+interface PermissionsData {
+  role: string;
+  isAdmin: boolean;
+  isCoach: boolean;
+  isCoordinator: boolean;
 }
 
 interface ProfileContextType {
@@ -29,124 +39,56 @@ interface ProfileContextType {
   refetch: () => Promise<void>;
 }
 
-const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
+/**
+ * Hook de compatibilité qui expose la même interface que l'ancien ProfileProvider
+ * mais utilise Refine (useGetIdentity / usePermissions) en interne.
+ */
+export function useProfile(): ProfileContextType {
+  const { data: identity, isLoading: identityLoading, refetch: refetchIdentity } =
+    useGetIdentity<IdentityData>({});
+  const { data: permissions, isLoading: permissionsLoading } =
+    usePermissions<PermissionsData>({});
 
-export function ProfileProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profiles, setProfiles] = useState<ProfileAccess[]>([]);
-  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const user = identity?.user ?? null;
+  const profiles = identity?.profiles ?? [];
+  const activeProfile = identity?.profile ?? null;
+  const isLoading = identityLoading || permissionsLoading;
 
-  const fetchProfiles = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("user_profile_access")
-        .select(`
-          relation,
-          profile:profiles(*)
-        `)
-        .eq("user_id", userId);
-
-      if (error) {
-        console.error("Erreur lors du chargement des profils:", error.message || error);
-        console.error("Détails:", error);
-        setProfiles([]);
-        setActiveProfile(null);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const rawData = data as unknown as ProfileAccessRow[];
-        const profileAccess = rawData
-          .filter((item) => item.profile)
-          .map((item) => ({
-            profile: item.profile as Profile,
-            relation: item.relation as RelationType,
-          }));
-
-        setProfiles(profileAccess);
-
-        // Définir le profil actif (self en priorité)
-        const selfProfile = profileAccess.find((p) => p.relation === "self");
-        setActiveProfile(selfProfile?.profile || profileAccess[0]?.profile || null);
-      } else {
-        // Pas de profils trouvés
-        setProfiles([]);
-        setActiveProfile(null);
-      }
-    } catch (err) {
-      console.error("Exception lors du chargement des profils:", err);
-      setProfiles([]);
-      setActiveProfile(null);
-    }
-  }, []);
-
-  const refetch = useCallback(async () => {
-    if (user) {
-      await fetchProfiles(user.id);
-    }
-  }, [user, fetchProfiles]);
-
-  useEffect(() => {
-    // Vérifier la session initiale
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfiles(session.user.id);
-      }
-      setIsLoading(false);
-    });
-
-    // Écouter les changements d'auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfiles(session.user.id);
-        } else {
-          setProfiles([]);
-          setActiveProfile(null);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, [fetchProfiles]);
-
-  const isCoach = activeProfile?.role === "coach" || activeProfile?.role === "admin" || activeProfile?.is_coordinator === true;
-  const isAdmin = activeProfile?.role === "admin" || activeProfile?.is_admin === true;
-  const isCoordinator = activeProfile?.is_coordinator === true || activeProfile?.role === "admin" || activeProfile?.role === "coach";
-  // Vérifie si l'utilisateur a accès à des profils d'enfants (relation parent ou guardian)
-  const hasChildren = profiles.some((p) => p.relation === "parent" || p.relation === "guardian");
-  // Vérifie si le profil actif est celui d'un parent (self avec accès enfants ou role explicitement parent)
-  const selfProfile = profiles.find((p) => p.relation === "self");
-  const isParent = activeProfile?.role === "parent" || (hasChildren && activeProfile?.id === selfProfile?.profile.id);
-
-  return (
-    <ProfileContext.Provider
-      value={{
-        user,
-        profiles,
-        activeProfile,
-        setActiveProfile,
-        isLoading,
-        isCoach,
-        isAdmin,
-        isCoordinator,
-        isParent,
-        hasChildren,
-        refetch,
-      }}
-    >
-      {children}
-    </ProfileContext.Provider>
+  const isAdmin = permissions?.isAdmin ?? false;
+  const isCoach = permissions?.isCoach ?? false;
+  const isCoordinator = permissions?.isCoordinator ?? false;
+  const hasChildren = profiles.some(
+    (p) => p.relation === "parent" || p.relation === "guardian"
   );
+  const selfProfile = profiles.find((p) => p.relation === "self");
+  const isParent =
+    activeProfile?.role === "parent" ||
+    (hasChildren && activeProfile?.id === selfProfile?.profile.id);
+
+  const setActiveProfile = () => {
+    // No-op in Refine mode — profile selection is managed by identity
+  };
+
+  const refetch = async () => {
+    await refetchIdentity();
+  };
+
+  return {
+    user,
+    profiles,
+    activeProfile,
+    setActiveProfile,
+    isLoading,
+    isCoach,
+    isAdmin,
+    isCoordinator,
+    isParent,
+    hasChildren,
+    refetch,
+  };
 }
 
-export function useProfile() {
-  const context = useContext(ProfileContext);
-  if (context === undefined) {
-    throw new Error("useProfile doit être utilisé dans un ProfileProvider");
-  }
-  return context;
+// Re-export ProfileProvider as no-op for backward compatibility
+export function ProfileProvider({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }

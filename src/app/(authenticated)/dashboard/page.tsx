@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useGetIdentity, usePermissions } from "@refinedev/core";
 import { supabase } from "@/lib/supabase";
-import { useProfile } from "@/hooks/use-profile";
-import { useActiveContext } from "@/hooks/use-active-context";
 import { NextEventCard } from "@/components/dashboard/next-event-card";
 import { AnnouncementsFeed } from "@/components/dashboard/announcements-feed";
-import { ParentDashboardSection } from "@/components/dashboard/parent-dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Event, Group, Announcement, Partner, Location } from "@/types/database";
+import type { Event, Group, Announcement, Partner, Location, Profile } from "@/types/database";
 
 interface EventWithDetails extends Event {
   groups?: Group | null;
@@ -25,54 +23,93 @@ interface EventGroupRow {
   event_id: string;
 }
 
+interface IdentityData {
+  id: string;
+  profile: Profile;
+  user: { id: string };
+}
+
 export default function DashboardPage() {
-  const { activeProfile, isLoading: profileLoading, isCoach } = useProfile();
-  const { activeContext, isLoading: contextLoading, isParent } = useActiveContext();
+  const { data: identity, isLoading: identityLoading } = useGetIdentity<IdentityData>({});
+  const { data: permissions, isLoading: permissionsLoading } = usePermissions<{
+    isAdmin: boolean;
+    isCoach: boolean;
+  }>({});
+  
+  const activeProfile = identity?.profile;
+  const isCoach = permissions?.isCoach ?? false;
+  
   const [nextEvent, setNextEvent] = useState<EventWithDetails | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const fetchIdRef = useRef(0);
+
+  const activeProfileId = activeProfile?.id;
 
   useEffect(() => {
+    if (identityLoading || permissionsLoading) {
+      setIsLoading(false);
+      return;
+    }
+    
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    const currentFetchId = ++fetchIdRef.current;
+    
     async function fetchDashboardData() {
-      if (!activeProfile) return;
+      if (!activeProfileId) {
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
 
       try {
-        // Si on a un contexte actif avec un groupe, utiliser ce groupe
-        // Sinon, utiliser l'ancienne méthode avec group_members
+        if (currentFetchId !== fetchIdRef.current) return;
+        
+        // Récupérer les groupes via group_members
         let groupIds: string[] = [];
         
-        if (activeContext?.group_id) {
-          // Utiliser le groupe du contexte actif
-          groupIds = [activeContext.group_id];
-        } else {
-          // Fallback: récupérer les groupes via group_members
-          const { data: groupMembershipsData } = await supabase
-            .from("group_members")
-            .select("group_id, groups(*)")
-            .eq("profile_id", activeProfile.id);
+        const { data: groupMembershipsData, error: groupError } = await supabase
+          .from("group_members")
+          .select("group_id, groups(*)")
+          .eq("profile_id", activeProfileId);
 
-          const groupMemberships = groupMembershipsData as GroupMembership[] | null;
-          if (groupMemberships && groupMemberships.length > 0) {
-            groupIds = groupMemberships.map((m) => m.group_id);
-          }
+        if (groupError) {
+          console.error("Erreur lors de la récupération des groupes:", groupError);
         }
 
+        const groupMemberships = groupMembershipsData as GroupMembership[] | null;
+        if (groupMemberships && groupMemberships.length > 0) {
+          groupIds = groupMemberships.map((m) => m.group_id);
+        }
+
+        if (currentFetchId !== fetchIdRef.current) return;
+
         // Récupérer le prochain événement via event_groups
+        let foundEvent: EventWithDetails | null = null;
+        
         if (groupIds.length > 0) {
-          // Chercher les événements liés à ces groupes via event_groups
-          const { data: eventGroupsData } = await supabase
+          const { data: eventGroupsData, error: eventGroupsError } = await supabase
             .from("event_groups")
             .select("event_id")
             .in("group_id", groupIds);
+          
+          if (eventGroupsError) {
+            console.error("Erreur lors de la récupération des event_groups:", eventGroupsError);
+          }
           
           if (eventGroupsData && eventGroupsData.length > 0) {
             const rows = eventGroupsData as EventGroupRow[];
             const eventIds = [...new Set(rows.map((eg) => eg.event_id))];
             
-            const { data: eventData } = await supabase
+            const { data: eventData, error: eventError } = await supabase
               .from("events")
               .select(`*, locations(*), event_groups(group_id, groups(*))`)
               .in("id", eventIds)
@@ -82,13 +119,18 @@ export default function DashboardPage() {
               .limit(1)
               .maybeSingle();
 
+            if (eventError) {
+              console.error("Erreur lors de la récupération de l'événement:", eventError);
+            }
+
+            if (currentFetchId !== fetchIdRef.current) return;
+
             if (eventData) {
-              setNextEvent(eventData as unknown as EventWithDetails);
+              foundEvent = eventData as unknown as EventWithDetails;
             }
           }
         } else if (isCoach) {
-          // Les coachs voient tous les événements à venir
-          const { data: eventData } = await supabase
+          const { data: eventData, error: eventError } = await supabase
             .from("events")
             .select(`*, locations(*), event_groups(group_id, groups(*))`)
             .eq("is_cancelled", false)
@@ -97,13 +139,25 @@ export default function DashboardPage() {
             .limit(1)
             .maybeSingle();
 
+          if (eventError) {
+            console.error("Erreur lors de la récupération de l'événement (coach):", eventError);
+          }
+
+          if (currentFetchId !== fetchIdRef.current) return;
+
           if (eventData) {
-            setNextEvent(eventData as unknown as EventWithDetails);
+            foundEvent = eventData as unknown as EventWithDetails;
           }
         }
+        
+        if (currentFetchId === fetchIdRef.current) {
+          setNextEvent(foundEvent);
+        }
+
+        if (currentFetchId !== fetchIdRef.current) return;
 
         // Récupérer les annonces
-        const { data: announcementsData } = await supabase
+        const { data: announcementsData, error: announcementsError } = await supabase
           .from("announcements")
           .select("*")
           .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
@@ -111,31 +165,52 @@ export default function DashboardPage() {
           .order("created_at", { ascending: false })
           .limit(10);
 
+        if (announcementsError) {
+          console.error("Erreur lors de la récupération des annonces:", announcementsError);
+        }
+
+        if (currentFetchId !== fetchIdRef.current) return;
+
         if (announcementsData) {
           setAnnouncements(announcementsData);
         }
 
         // Récupérer les partenaires actifs
-        const { data: partnersData } = await supabase
+        const { data: partnersData, error: partnersError } = await supabase
           .from("partners")
           .select("*")
           .eq("is_active", true)
           .order("tier", { ascending: true });
 
+        if (partnersError) {
+          console.error("Erreur lors de la récupération des partenaires:", partnersError);
+        }
+
+        if (currentFetchId !== fetchIdRef.current) return;
+
         if (partnersData) {
           setPartners(partnersData);
         }
       } catch (error) {
+        if (currentFetchId !== fetchIdRef.current) return;
         console.error("Erreur lors du chargement des données:", error);
       } finally {
-        setIsLoading(false);
+        if (currentFetchId === fetchIdRef.current) {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchDashboardData();
-  }, [activeProfile, activeContext]);
+    
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [activeProfileId, isCoach, identityLoading, permissionsLoading]);
 
-  if (profileLoading || contextLoading || isLoading) {
+  if (identityLoading || permissionsLoading || isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -147,9 +222,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Section Parent - Vue des enfants */}
-      {isParent && <ParentDashboardSection />}
-
       {/* Carte Prochaine Sortie */}
       <section>
         <h2 className="text-sm font-semibold text-muted-foreground mb-3">
