@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -34,9 +35,11 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className={`${inter.className} antialiased`} suppressHydrationWarning>
-        <RefineContext>
-          {children}
-        </RefineContext>
+        <Suspense fallback={null}>
+          <RefineContext>
+            {children}
+          </RefineContext>
+        </Suspense>
         <Toaster />
         <ServiceWorkerRegistration />
       </body>
