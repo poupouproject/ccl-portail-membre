@@ -88,18 +88,24 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [user, fetchProfiles]);
 
   useEffect(() => {
+    let isMounted = true;
+    
     // Vérifier la session initiale
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted) return;
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfiles(session.user.id);
+        await fetchProfiles(session.user.id);
       }
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     });
 
     // Écouter les changements d'auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!isMounted) return;
         setUser(session?.user ?? null);
         if (session?.user) {
           await fetchProfiles(session.user.id);
@@ -110,7 +116,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfiles]);
 
   const isCoach = activeProfile?.role === "coach" || activeProfile?.role === "admin" || activeProfile?.is_coordinator === true;

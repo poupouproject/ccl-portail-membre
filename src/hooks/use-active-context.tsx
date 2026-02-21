@@ -131,24 +131,32 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
   }, [user, fetchContexts, loadActiveContext]);
 
   useEffect(() => {
+    let isMounted = true;
+    
     // Vérifier la session initiale
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted) return;
       setUser(session?.user ?? null);
       if (session?.user) {
         const contextsList = await fetchContexts(session.user.id);
+        if (!isMounted) return;
         setContexts(contextsList);
         await loadActiveContext(session.user.id, contextsList);
       }
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     });
 
     // Écouter les changements d'auth
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
       setUser(session?.user ?? null);
       if (session?.user) {
         const contextsList = await fetchContexts(session.user.id);
+        if (!isMounted) return;
         setContexts(contextsList);
         await loadActiveContext(session.user.id, contextsList);
       } else {
@@ -156,10 +164,15 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
         setActiveContextState(null);
         setActiveGroup(null);
       }
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchContexts, loadActiveContext]);
 
   const setActiveContext = useCallback(

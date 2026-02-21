@@ -42,6 +42,11 @@ export default function DashboardPage() {
   const activeContextGroupId = activeContext?.group_id;
 
   useEffect(() => {
+    // Ne pas démarrer le fetch si les providers sont encore en chargement
+    if (profileLoading || contextLoading) {
+      return;
+    }
+    
     // Annuler la requête précédente si elle existe
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -186,7 +191,7 @@ export default function DashboardPage() {
         abortControllerRef.current.abort();
       }
     };
-  }, [activeProfileId, activeContextGroupId, isCoach]);
+  }, [activeProfileId, activeContextGroupId, isCoach, profileLoading, contextLoading]);
 
   if (profileLoading || contextLoading || isLoading) {
     return (

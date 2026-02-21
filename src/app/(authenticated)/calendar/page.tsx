@@ -39,6 +39,11 @@ export default function CalendarPage() {
   const activeContextGroupId = activeContext?.group_id;
 
   useEffect(() => {
+    // Ne pas démarrer le fetch si les providers sont encore en chargement
+    if (profileLoading || contextLoading) {
+      return;
+    }
+    
     const currentFetchId = ++fetchIdRef.current;
     
     async function fetchEvents() {
@@ -173,7 +178,7 @@ export default function CalendarPage() {
     }
 
     fetchEvents();
-  }, [activeProfileId, activeContextGroupId, isCoach]);
+  }, [activeProfileId, activeContextGroupId, isCoach, profileLoading, contextLoading]);
 
   if (profileLoading || contextLoading || isLoading) {
     return (

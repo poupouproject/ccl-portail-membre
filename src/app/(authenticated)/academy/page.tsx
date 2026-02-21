@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { VideoCard } from "@/components/academy/video-card";
@@ -28,10 +28,21 @@ export default function AcademyPage() {
   const [evaluations, setEvaluations] = useState<EvaluationWithCoach[]>([]);
   const [completedVideos, setCompletedVideos] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Référence stable pour éviter les race conditions
+  const fetchIdRef = useRef(0);
+  const activeProfileId = activeProfile?.id;
 
   useEffect(() => {
+    // Ne pas démarrer le fetch si le provider est encore en chargement
+    if (profileLoading) {
+      return;
+    }
+    
+    const currentFetchId = ++fetchIdRef.current;
+    
     async function fetchAcademyData() {
-      if (!activeProfile) {
+      if (!activeProfileId) {
         setIsLoading(false);
         return;
       }
@@ -39,12 +50,17 @@ export default function AcademyPage() {
       setIsLoading(true);
 
       try {
+        // Vérifier si cette requête est toujours valide
+        if (currentFetchId !== fetchIdRef.current) return;
+        
         // Récupérer le niveau du groupe de l'athlète
         const { data: groupMembershipData } = await supabase
           .from("group_members")
           .select("group_id, groups(level_required)")
-          .eq("profile_id", activeProfile.id)
+          .eq("profile_id", activeProfileId)
           .maybeSingle();
+
+        if (currentFetchId !== fetchIdRef.current) return;
 
         const groupMembership = groupMembershipData as unknown as GroupMembershipWithLevel | null;
         const userLevel = groupMembership?.groups?.level_required || 1;
@@ -58,6 +74,8 @@ export default function AcademyPage() {
           .order("category")
           .order("title");
 
+        if (currentFetchId !== fetchIdRef.current) return;
+
         if (videosData) {
           setVideos(videosData as AcademyVideo[]);
         }
@@ -66,8 +84,10 @@ export default function AcademyPage() {
         const { data: progressionDataRaw } = await supabase
           .from("profile_progression")
           .select("video_id")
-          .eq("profile_id", activeProfile.id)
+          .eq("profile_id", activeProfileId)
           .eq("is_completed", true);
+
+        if (currentFetchId !== fetchIdRef.current) return;
 
         const progressionData = progressionDataRaw as ProgressionRecord[] | null;
         if (progressionData) {
@@ -78,21 +98,26 @@ export default function AcademyPage() {
         const { data: evaluationsData } = await supabase
           .from("evaluations")
           .select(`*, coach:profiles!evaluations_coach_id_fkey(*)`)
-          .eq("profile_id", activeProfile.id)
+          .eq("profile_id", activeProfileId)
           .order("evaluation_date", { ascending: false });
+
+        if (currentFetchId !== fetchIdRef.current) return;
 
         if (evaluationsData) {
           setEvaluations(evaluationsData as unknown as EvaluationWithCoach[]);
         }
       } catch (error) {
+        if (currentFetchId !== fetchIdRef.current) return;
         console.error("Erreur lors du chargement de l'académie:", error);
       } finally {
-        setIsLoading(false);
+        if (currentFetchId === fetchIdRef.current) {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchAcademyData();
-  }, [activeProfile]);
+  }, [activeProfileId, profileLoading]);
 
   const handleVideoComplete = async (videoId: string, completed: boolean) => {
     if (!activeProfile) return;
