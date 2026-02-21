@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Calendar, GraduationCap, MessageSquare, Shield } from "lucide-react";
+import { Home, Calendar, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
 
@@ -17,7 +17,8 @@ const navItems: NavItem[] = [
   { href: "/dashboard", label: "Accueil", icon: Home },
   { href: "/calendar", label: "Agenda", icon: Calendar },
   { href: "/team", label: "Équipe", icon: MessageSquare },
-  { href: "/academy", label: "Académie", icon: GraduationCap }, // Disponible pour tous
+  // Académie temporairement retirée - problèmes de chargement pour les profils enfants
+  // { href: "/academy", label: "Académie", icon: GraduationCap },
   { href: "/admin", label: "Admin", icon: Shield, roles: ["admin", "coach"] },
 ];
 

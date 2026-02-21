@@ -254,7 +254,7 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from("user_profile_access")
-          .select("profile:profiles(role, is_admin, is_coordinator)")
+          .select("profile:profiles(role, is_coordinator)")
           .eq("user_id", user.id)
           .eq("relation", "self")
           .limit(1)
@@ -272,9 +272,9 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const profileData = data as any;
         if (profileData?.profile) {
-          const profile = profileData.profile as { role: string; is_admin?: boolean; is_coordinator?: boolean };
-          // Support both legacy role field and new is_admin/is_coordinator flags
-          setIsAdmin(profile.is_admin === true || profile.role === "admin");
+          const profile = profileData.profile as { role: string; is_coordinator?: boolean };
+          // Utiliser uniquement le champ role pour déterminer le statut admin
+          setIsAdmin(profile.role === "admin");
           setIsCoordinator(profile.is_coordinator === true || profile.role === "admin" || profile.role === "coach");
         } else {
           setIsAdmin(false);

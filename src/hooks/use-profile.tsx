@@ -143,8 +143,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     };
   }, [fetchProfiles]);
 
-  const isCoach = activeProfile?.role === "coach" || activeProfile?.role === "admin" || activeProfile?.is_coordinator === true;
-  const isAdmin = activeProfile?.role === "admin" || activeProfile?.is_admin === true;
+  // Utiliser uniquement le champ role pour déterminer les permissions
+  const isCoach = activeProfile?.role === "coach" || activeProfile?.role === "admin";
+  const isAdmin = activeProfile?.role === "admin";
   const isCoordinator = activeProfile?.is_coordinator === true || activeProfile?.role === "admin" || activeProfile?.role === "coach";
   // Vérifie si l'utilisateur a accès à des profils d'enfants (relation parent ou guardian)
   const hasChildren = profiles.some((p) => p.relation === "parent" || p.relation === "guardian");
