@@ -104,8 +104,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
     // Écouter les changements d'auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         if (!isMounted) return;
+        
+        // Ignorer les événements INITIAL_SESSION car ils sont gérés par getSession()
+        if (event === "INITIAL_SESSION") return;
+        
         setUser(session?.user ?? null);
         if (session?.user) {
           await fetchProfiles(session.user.id);

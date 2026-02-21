@@ -151,8 +151,12 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
     // Écouter les changements d'auth
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
+      
+      // Ignorer les événements INITIAL_SESSION car ils sont gérés par getSession()
+      if (event === "INITIAL_SESSION") return;
+      
       setUser(session?.user ?? null);
       if (session?.user) {
         const contextsList = await fetchContexts(session.user.id);
@@ -163,9 +167,6 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
         setContexts([]);
         setActiveContextState(null);
         setActiveGroup(null);
-      }
-      if (isMounted) {
-        setIsLoading(false);
       }
     });
 
@@ -224,6 +225,8 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
   const [isCoordinator, setIsCoordinator] = useState(false);
   
   useEffect(() => {
+    let isMounted = true;
+    
     async function checkAdminStatus() {
       if (!user) {
         setIsAdmin(false);
@@ -239,6 +242,8 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
           .eq("relation", "self")
           .limit(1)
           .maybeSingle();
+
+        if (!isMounted) return;
 
         if (error) {
           console.error("Erreur lors de la vérification du statut admin:", error);
@@ -259,12 +264,17 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
           setIsCoordinator(false);
         }
       } catch (err) {
+        if (!isMounted) return;
         console.error("Exception lors de la vérification du statut admin:", err);
         setIsAdmin(false);
         setIsCoordinator(false);
       }
     }
     checkAdminStatus();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   return (
