@@ -146,8 +146,6 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      // Remettre en loading pour éviter un dashboard vide
-      setIsLoading(true);
       setUser(session?.user ?? null);
       if (session?.user) {
         const contextsList = await fetchContexts(session.user.id);

@@ -89,10 +89,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Vérifier la session initiale
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        await fetchProfiles(session.user.id);
+        fetchProfiles(session.user.id);
       }
       setIsLoading(false);
     });
@@ -100,8 +100,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     // Écouter les changements d'auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        // Remettre en loading pour éviter un dashboard vide
-        setIsLoading(true);
         setUser(session?.user ?? null);
         if (session?.user) {
           await fetchProfiles(session.user.id);
@@ -109,7 +107,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           setProfiles([]);
           setActiveProfile(null);
         }
-        setIsLoading(false);
       }
     );
 
