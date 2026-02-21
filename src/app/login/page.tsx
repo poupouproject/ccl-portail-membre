@@ -1,7 +1,6 @@
 "use client";
 
-import { supabase } from "@/lib/supabase";
-import { Provider } from "@supabase/supabase-js";
+import { useLogin } from "@refinedev/core";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,47 +10,16 @@ import { useState } from "react";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [showDevLogin, setShowDevLogin] = useState(false);
+  const { mutate: login, isPending: loading } = useLogin();
 
-  const handleLogin = async (provider: Provider) => {
-    const redirectUrl = `${window.location.origin}/auth/callback`;
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: provider,
-      options: {
-        redirectTo: redirectUrl,
-      },
-    });
-
-    if (error) {
-      console.error("[Auth] OAuth error:", error);
-      alert(`Erreur d'authentification: ${error.message}`);
-    }
+  const handleOAuthLogin = (provider: string) => {
+    login({ provider });
   };
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleEmailLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error("[Auth] Email login error:", error);
-        alert(`Erreur: ${error.message}`);
-      } else {
-        window.location.href = "/dashboard";
-      }
-    } catch (err) {
-      console.error("[Auth] Unexpected error:", err);
-      alert("Erreur inattendue lors de la connexion");
-    } finally {
-      setLoading(false);
-    }
+    login({ email, password });
   };
 
   return (
@@ -126,7 +94,7 @@ export default function LoginPage() {
           <>
             {/* BOUTON GOOGLE */}
             <Button
-              onClick={() => handleLogin("google")}
+              onClick={() => handleOAuthLogin("google")}
               variant="outline"
               className="w-full py-6 mb-3 font-semibold"
             >
@@ -153,7 +121,7 @@ export default function LoginPage() {
 
             {/* BOUTON GITHUB */}
             <Button
-              onClick={() => handleLogin("github")}
+              onClick={() => handleOAuthLogin("github")}
               className="w-full py-6 mb-3 bg-[#24292e] hover:bg-[#2f363d] text-white font-semibold"
             >
               <svg
@@ -173,7 +141,7 @@ export default function LoginPage() {
 
             {/* BOUTON MICROSOFT */}
             <Button
-              onClick={() => handleLogin("azure")}
+              onClick={() => handleOAuthLogin("azure")}
               variant="outline"
               className="w-full py-6 mb-6 font-semibold"
             >

@@ -4,15 +4,15 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Home, Calendar, GraduationCap, MessageSquare, Shield, MapPin, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useProfile } from "@/hooks/use-profile";
+import { useGetIdentity, usePermissions } from "@refinedev/core";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import type { Profile } from "@/types/database";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: ("admin" | "coach" | "athlete")[];
   adminOnly?: boolean;
 }
 
@@ -34,11 +34,17 @@ const adminNavItems: NavItem[] = [
 
 export function DesktopSidebar() {
   const pathname = usePathname();
-  const { activeProfile, isLoading, isAdmin, isCoach } = useProfile();
+  const { data: identity, isLoading } = useGetIdentity<{ profile: Profile }>({});
+  const { data: permissions } = usePermissions<{
+    isAdmin: boolean;
+    isCoach: boolean;
+  }>({});
 
-  if (isLoading || !activeProfile) return null;
+  const isAdmin = permissions?.isAdmin ?? false;
+  const isCoach = permissions?.isCoach ?? false;
 
-  const isAdminSection = pathname.startsWith("/admin");
+  if (isLoading || !identity) return null;
+
   const showAdminNav = isAdmin || isCoach;
 
   const filteredAdminItems = isAdmin 

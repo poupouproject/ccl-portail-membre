@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useGetIdentity, usePermissions } from "@refinedev/core";
 import { supabase } from "@/lib/supabase";
-import { useProfile } from "@/hooks/use-profile";
-import { useActiveContext } from "@/hooks/use-active-context";
 import { NextEventCard } from "@/components/dashboard/next-event-card";
 import { AnnouncementsFeed } from "@/components/dashboard/announcements-feed";
-import { ParentDashboardSection } from "@/components/dashboard/parent-dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Event, Group, Announcement, Partner, Location } from "@/types/database";
+import type { Event, Group, Announcement, Partner, Location, Profile } from "@/types/database";
 
 interface EventWithDetails extends Event {
   groups?: Group | null;
@@ -25,47 +23,42 @@ interface EventGroupRow {
   event_id: string;
 }
 
+interface IdentityData {
+  id: string;
+  profile: Profile;
+  user: { id: string };
+}
+
 export default function DashboardPage() {
-  const { activeProfile, isLoading: profileLoading, isCoach } = useProfile();
-  const { activeContext, isLoading: contextLoading, isParent } = useActiveContext();
+  const { data: identity, isLoading: identityLoading } = useGetIdentity<IdentityData>({});
+  const { data: permissions, isLoading: permissionsLoading } = usePermissions<{
+    isAdmin: boolean;
+    isCoach: boolean;
+  }>({});
+  
+  const activeProfile = identity?.profile;
+  const isCoach = permissions?.isCoach ?? false;
+  
   const [nextEvent, setNextEvent] = useState<EventWithDetails | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // Counter to force re-fetch when context changes
-  const [contextChangeCounter, setContextChangeCounter] = useState(0);
   
-  // Références stables pour éviter les race conditions
   const abortControllerRef = useRef<AbortController | null>(null);
   const fetchIdRef = useRef(0);
 
-  // Utiliser des IDs stables comme dépendances
   const activeProfileId = activeProfile?.id;
-  const activeContextGroupId = activeContext?.group_id;
-
-  // Listen for context changes to refresh data
-  useEffect(() => {
-    function handleContextChange() {
-      setContextChangeCounter((c) => c + 1);
-    }
-    window.addEventListener("context-changed", handleContextChange);
-    return () => window.removeEventListener("context-changed", handleContextChange);
-  }, []);
 
   useEffect(() => {
-    // Ne pas démarrer le fetch si les providers sont encore en chargement
-    if (profileLoading || contextLoading) {
-      // Ne pas garder isLoading à true quand on attend les providers
+    if (identityLoading || permissionsLoading) {
       setIsLoading(false);
       return;
     }
     
-    // Annuler la requête précédente si elle existe
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     
-    // Créer un nouvel AbortController
     abortControllerRef.current = new AbortController();
     const currentFetchId = ++fetchIdRef.current;
     
@@ -78,41 +71,31 @@ export default function DashboardPage() {
       setIsLoading(true);
 
       try {
-        // Vérifier si cette requête est toujours valide
         if (currentFetchId !== fetchIdRef.current) return;
         
-        // Si on a un contexte actif avec un groupe, utiliser ce groupe
-        // Sinon, utiliser l'ancienne méthode avec group_members
+        // Récupérer les groupes via group_members
         let groupIds: string[] = [];
         
-        if (activeContextGroupId) {
-          // Utiliser le groupe du contexte actif
-          groupIds = [activeContextGroupId];
-        } else {
-          // Fallback: récupérer les groupes via group_members
-          const { data: groupMembershipsData, error: groupError } = await supabase
-            .from("group_members")
-            .select("group_id, groups(*)")
-            .eq("profile_id", activeProfileId);
+        const { data: groupMembershipsData, error: groupError } = await supabase
+          .from("group_members")
+          .select("group_id, groups(*)")
+          .eq("profile_id", activeProfileId);
 
-          if (groupError) {
-            console.error("Erreur lors de la récupération des groupes:", groupError);
-          }
-
-          const groupMemberships = groupMembershipsData as GroupMembership[] | null;
-          if (groupMemberships && groupMemberships.length > 0) {
-            groupIds = groupMemberships.map((m) => m.group_id);
-          }
+        if (groupError) {
+          console.error("Erreur lors de la récupération des groupes:", groupError);
         }
 
-        // Vérifier si cette requête est toujours valide après l'await
+        const groupMemberships = groupMembershipsData as GroupMembership[] | null;
+        if (groupMemberships && groupMemberships.length > 0) {
+          groupIds = groupMemberships.map((m) => m.group_id);
+        }
+
         if (currentFetchId !== fetchIdRef.current) return;
 
         // Récupérer le prochain événement via event_groups
         let foundEvent: EventWithDetails | null = null;
         
         if (groupIds.length > 0) {
-          // Chercher les événements liés à ces groupes via event_groups
           const { data: eventGroupsData, error: eventGroupsError } = await supabase
             .from("event_groups")
             .select("event_id")
@@ -140,7 +123,6 @@ export default function DashboardPage() {
               console.error("Erreur lors de la récupération de l'événement:", eventError);
             }
 
-            // Vérifier si cette requête est toujours valide
             if (currentFetchId !== fetchIdRef.current) return;
 
             if (eventData) {
@@ -148,7 +130,6 @@ export default function DashboardPage() {
             }
           }
         } else if (isCoach) {
-          // Les coachs voient tous les événements à venir
           const { data: eventData, error: eventError } = await supabase
             .from("events")
             .select(`*, locations(*), event_groups(group_id, groups(*))`)
@@ -162,7 +143,6 @@ export default function DashboardPage() {
             console.error("Erreur lors de la récupération de l'événement (coach):", eventError);
           }
 
-          // Vérifier si cette requête est toujours valide
           if (currentFetchId !== fetchIdRef.current) return;
 
           if (eventData) {
@@ -170,12 +150,10 @@ export default function DashboardPage() {
           }
         }
         
-        // Mettre à jour l'événement seulement si la requête est toujours valide
         if (currentFetchId === fetchIdRef.current) {
           setNextEvent(foundEvent);
         }
 
-        // Vérifier avant les annonces
         if (currentFetchId !== fetchIdRef.current) return;
 
         // Récupérer les annonces
@@ -214,11 +192,9 @@ export default function DashboardPage() {
           setPartners(partnersData);
         }
       } catch (error) {
-        // Ignorer les erreurs si la requête a été annulée
         if (currentFetchId !== fetchIdRef.current) return;
         console.error("Erreur lors du chargement des données:", error);
       } finally {
-        // Ne mettre à jour l'état loading que si c'est toujours la requête active
         if (currentFetchId === fetchIdRef.current) {
           setIsLoading(false);
         }
@@ -227,15 +203,14 @@ export default function DashboardPage() {
 
     fetchDashboardData();
     
-    // Cleanup: invalider cette requête si les dépendances changent
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [activeProfileId, activeContextGroupId, isCoach, profileLoading, contextLoading, contextChangeCounter]);
+  }, [activeProfileId, isCoach, identityLoading, permissionsLoading]);
 
-  if (profileLoading || contextLoading || isLoading) {
+  if (identityLoading || permissionsLoading || isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -247,9 +222,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Section Parent - Vue des enfants */}
-      {isParent && <ParentDashboardSection />}
-
       {/* Carte Prochaine Sortie */}
       <section>
         <h2 className="text-sm font-semibold text-muted-foreground mb-3">
