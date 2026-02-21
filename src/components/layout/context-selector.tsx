@@ -52,7 +52,10 @@ export function ContextSelector() {
           {activeContext.profile_name.split(" ")[0]}
         </span>
         {isAdmin && (
-          <Shield className="h-3 w-3 text-red-500" aria-label="Admin" />
+          <Badge variant="default" className="text-xs bg-purple-600 text-white">
+            <Shield className="h-3 w-3 mr-1" />
+            Admin
+          </Badge>
         )}
         <Badge variant={getContextBadgeVariant(activeContext)} className="text-xs">
           {activeContext.group_name}
@@ -76,7 +79,9 @@ export function ContextSelector() {
               {activeContext.profile_name.split(" ")[0]}
             </span>
             {isAdmin && (
-              <Shield className="h-3 w-3 text-red-500" aria-label="Admin" />
+              <Badge variant="default" className="text-[10px] px-1 py-0 bg-purple-600 text-white">
+                Admin
+              </Badge>
             )}
           </div>
           <span className="text-xs text-muted-foreground leading-tight">
@@ -86,7 +91,15 @@ export function ContextSelector() {
         <ChevronDown className="h-4 w-4 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
-        <DropdownMenuLabel>Changer de contexte</DropdownMenuLabel>
+        <DropdownMenuLabel className="flex items-center justify-between">
+          <span>Changer de contexte</span>
+          {isAdmin && (
+            <Badge variant="default" className="text-xs bg-purple-600 text-white">
+              <Shield className="h-3 w-3 mr-1" />
+              Administrateur
+            </Badge>
+          )}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
         {/* Contextes Coach */}

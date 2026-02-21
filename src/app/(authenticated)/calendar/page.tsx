@@ -30,6 +30,8 @@ export default function CalendarPage() {
   const [upcomingEvents, setUpcomingEvents] = useState<EventWithDetails[]>([]);
   const [pastEvents, setPastEvents] = useState<EventWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Counter to force re-fetch when context changes
+  const [contextChangeCounter, setContextChangeCounter] = useState(0);
   
   // Références stables pour éviter les race conditions
   const fetchIdRef = useRef(0);
@@ -37,6 +39,15 @@ export default function CalendarPage() {
   // Utiliser des IDs stables comme dépendances
   const activeProfileId = activeProfile?.id;
   const activeContextGroupId = activeContext?.group_id;
+
+  // Listen for context changes to refresh data
+  useEffect(() => {
+    function handleContextChange() {
+      setContextChangeCounter((c) => c + 1);
+    }
+    window.addEventListener("context-changed", handleContextChange);
+    return () => window.removeEventListener("context-changed", handleContextChange);
+  }, []);
 
   useEffect(() => {
     // Ne pas démarrer le fetch si les providers sont encore en chargement
@@ -193,7 +204,7 @@ export default function CalendarPage() {
     }
 
     fetchEvents();
-  }, [activeProfileId, activeContextGroupId, isCoach, profileLoading, contextLoading]);
+  }, [activeProfileId, activeContextGroupId, isCoach, profileLoading, contextLoading, contextChangeCounter]);
 
   if (profileLoading || contextLoading || isLoading) {
     return (

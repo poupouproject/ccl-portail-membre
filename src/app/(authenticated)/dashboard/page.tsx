@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { useActiveContext } from "@/hooks/use-active-context";
@@ -32,6 +32,8 @@ export default function DashboardPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Counter to force re-fetch when context changes
+  const [contextChangeCounter, setContextChangeCounter] = useState(0);
   
   // Références stables pour éviter les race conditions
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -40,6 +42,15 @@ export default function DashboardPage() {
   // Utiliser des IDs stables comme dépendances
   const activeProfileId = activeProfile?.id;
   const activeContextGroupId = activeContext?.group_id;
+
+  // Listen for context changes to refresh data
+  useEffect(() => {
+    function handleContextChange() {
+      setContextChangeCounter((c) => c + 1);
+    }
+    window.addEventListener("context-changed", handleContextChange);
+    return () => window.removeEventListener("context-changed", handleContextChange);
+  }, []);
 
   useEffect(() => {
     // Ne pas démarrer le fetch si les providers sont encore en chargement
@@ -222,7 +233,7 @@ export default function DashboardPage() {
         abortControllerRef.current.abort();
       }
     };
-  }, [activeProfileId, activeContextGroupId, isCoach, profileLoading, contextLoading]);
+  }, [activeProfileId, activeContextGroupId, isCoach, profileLoading, contextLoading, contextChangeCounter]);
 
   if (profileLoading || contextLoading || isLoading) {
     return (
