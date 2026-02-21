@@ -41,6 +41,8 @@ export default function CalendarPage() {
   useEffect(() => {
     // Ne pas démarrer le fetch si les providers sont encore en chargement
     if (profileLoading || contextLoading) {
+      // Ne pas garder isLoading à true quand on attend les providers
+      setIsLoading(false);
       return;
     }
     
