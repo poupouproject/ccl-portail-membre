@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Bike, LogOut, Bell, Settings, User, Sparkles } from "lucide-react";
-import { useProfile } from "@/hooks/use-profile";
+import { useGetIdentity, useLogout, usePermissions } from "@refinedev/core";
 import { supabase } from "@/lib/supabase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -27,12 +27,31 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { getInitials, formatRelativeTime } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChangelogModal } from "@/components/changelog-modal";
-import { ContextSelector } from "@/components/layout/context-selector";
-import type { Notification } from "@/types/database";
+import type { Notification, Profile } from "@/types/database";
 import Link from "next/link";
 
+interface IdentityData {
+  id: string;
+  name: string;
+  avatar: string | null;
+  profile: Profile;
+  user: { id: string };
+}
+
 export function AppHeader() {
-  const { user, activeProfile, isLoading, isParent, isCoach, isAdmin } = useProfile();
+  const { data: identity, isLoading } = useGetIdentity<IdentityData>();
+  const { data: permissions } = usePermissions<{
+    role: string;
+    isAdmin: boolean;
+    isCoach: boolean;
+  }>();
+  const { mutate: logout } = useLogout();
+
+  const activeProfile = identity?.profile;
+  const user = identity?.user;
+  const isAdmin = permissions?.isAdmin ?? false;
+  const isCoach = permissions?.isCoach ?? false;
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -62,7 +81,6 @@ export function AppHeader() {
   useEffect(() => {
     fetchNotifications();
 
-    // Écouter les nouvelles notifications en temps réel
     if (user) {
       const channel = supabase
         .channel("notifications")
@@ -89,6 +107,7 @@ export function AppHeader() {
 
   const markAsRead = async (notificationId: string) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from("notifications")
         .update({ is_read: true })
@@ -107,6 +126,7 @@ export function AppHeader() {
     if (!user) return;
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from("notifications")
         .update({ is_read: true })
@@ -120,9 +140,8 @@ export function AppHeader() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+  const handleLogout = () => {
+    logout();
   };
 
   const getNotificationIcon = (type: string) => {
@@ -155,7 +174,7 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-40 bg-white border-b">
       <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-        {/* Logo et sélecteur de contexte */}
+        {/* Logo */}
         <div className="flex items-center gap-2">
           <Bike className="h-6 w-6 text-club-orange" />
 
@@ -168,8 +187,11 @@ export function AppHeader() {
             <span className="text-xs font-medium text-club-orange">BETA</span>
           </button>
 
-          {/* Context Selector (replaces Profile Switcher) */}
-          <ContextSelector />
+          {activeProfile && (
+            <span className="font-medium text-sm">
+              {activeProfile.first_name}
+            </span>
+          )}
         </div>
 
         {/* Actions: Notifications & Avatar */}
@@ -269,18 +291,11 @@ export function AppHeader() {
                     <span>
                       {activeProfile?.first_name} {activeProfile?.last_name}
                     </span>
-                    {/* Badge de rôle */}
                     {isAdmin && (
                       <Badge variant="default" className="text-xs bg-purple-600">Admin</Badge>
                     )}
                     {!isAdmin && isCoach && (
                       <Badge variant="default" className="text-xs bg-blue-600">Coach</Badge>
-                    )}
-                    {!isAdmin && !isCoach && isParent && (
-                      <Badge variant="default" className="text-xs bg-green-600">Parent</Badge>
-                    )}
-                    {!isAdmin && !isCoach && !isParent && activeProfile?.role === "athlete" && (
-                      <Badge variant="secondary" className="text-xs">Athlète</Badge>
                     )}
                   </div>
                   <span className="text-xs font-normal text-muted-foreground">
