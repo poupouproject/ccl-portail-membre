@@ -45,9 +45,9 @@ interface ProfileContextType {
  */
 export function useProfile(): ProfileContextType {
   const { data: identity, isLoading: identityLoading, refetch: refetchIdentity } =
-    useGetIdentity<IdentityData>();
+    useGetIdentity<IdentityData>({});
   const { data: permissions, isLoading: permissionsLoading } =
-    usePermissions<PermissionsData>();
+    usePermissions<PermissionsData>({});
 
   const user = identity?.user ?? null;
   const profiles = identity?.profiles ?? [];

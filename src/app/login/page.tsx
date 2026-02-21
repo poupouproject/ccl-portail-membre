@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showDevLogin, setShowDevLogin] = useState(false);
-  const { mutate: login, isLoading: loading } = useLogin();
+  const { mutate: login, isPending: loading } = useLogin();
 
   const handleOAuthLogin = (provider: string) => {
     login({ provider });

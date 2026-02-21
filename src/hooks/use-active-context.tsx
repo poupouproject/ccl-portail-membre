@@ -47,9 +47,9 @@ const STORAGE_KEY = "ccl_active_context";
  */
 export function useActiveContext(): ActiveContextState {
   const { data: identity, isLoading: identityLoading } =
-    useGetIdentity<IdentityData>();
+    useGetIdentity<IdentityData>({});
   const { data: permissions, isLoading: permissionsLoading } =
-    usePermissions<PermissionsData>();
+    usePermissions<PermissionsData>({});
 
   const user = identity?.user ?? null;
   const [contexts, setContexts] = useState<UserContext[]>([]);

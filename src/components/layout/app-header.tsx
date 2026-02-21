@@ -39,12 +39,12 @@ interface IdentityData {
 }
 
 export function AppHeader() {
-  const { data: identity, isLoading } = useGetIdentity<IdentityData>();
+  const { data: identity, isLoading } = useGetIdentity<IdentityData>({});
   const { data: permissions } = usePermissions<{
     role: string;
     isAdmin: boolean;
     isCoach: boolean;
-  }>();
+  }>({});
   const { mutate: logout } = useLogout();
 
   const activeProfile = identity?.profile;

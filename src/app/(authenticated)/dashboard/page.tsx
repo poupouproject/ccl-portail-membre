@@ -30,11 +30,11 @@ interface IdentityData {
 }
 
 export default function DashboardPage() {
-  const { data: identity, isLoading: identityLoading } = useGetIdentity<IdentityData>();
+  const { data: identity, isLoading: identityLoading } = useGetIdentity<IdentityData>({});
   const { data: permissions, isLoading: permissionsLoading } = usePermissions<{
     isAdmin: boolean;
     isCoach: boolean;
-  }>();
+  }>({});
   
   const activeProfile = identity?.profile;
   const isCoach = permissions?.isCoach ?? false;

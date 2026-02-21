@@ -23,11 +23,11 @@ const navItems: NavItem[] = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { data: identity, isLoading } = useGetIdentity<{ profile: Profile }>();
+  const { data: identity, isLoading } = useGetIdentity<{ profile: Profile }>({});
   const { data: permissions } = usePermissions<{
     isAdmin: boolean;
     isCoach: boolean;
-  }>();
+  }>({});
 
   const isAdmin = permissions?.isAdmin ?? false;
   const isCoach = permissions?.isCoach ?? false;

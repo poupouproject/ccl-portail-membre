@@ -1,6 +1,6 @@
 "use client";
 
-import { Authenticated, useGetIdentity, usePermissions } from "@refinedev/core";
+import { Authenticated } from "@refinedev/core";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { AppHeader } from "@/components/layout/app-header";
 import { DesktopSidebar } from "@/components/layout/desktop-sidebar";
