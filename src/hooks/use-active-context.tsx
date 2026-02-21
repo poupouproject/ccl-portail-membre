@@ -132,6 +132,15 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+    
+    // Timeout de sécurité pour éviter les loading infinis (10 secondes)
+    timeoutId = setTimeout(() => {
+      if (isMounted && isLoading) {
+        console.warn("ActiveContextProvider: Timeout de chargement atteint, forçage de isLoading à false");
+        setIsLoading(false);
+      }
+    }, 10000);
     
     // Vérifier la session initiale
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -145,6 +154,13 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
       }
       if (isMounted) {
         setIsLoading(false);
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    }).catch((error) => {
+      console.error("Erreur lors de getSession:", error);
+      if (isMounted) {
+        setIsLoading(false);
+        if (timeoutId) clearTimeout(timeoutId);
       }
     });
 
@@ -172,9 +188,10 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, [fetchContexts, loadActiveContext]);
+  }, [fetchContexts, loadActiveContext, isLoading]);
 
   const setActiveContext = useCallback(
     async (context: UserContext) => {

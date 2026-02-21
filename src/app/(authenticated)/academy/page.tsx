@@ -40,6 +40,7 @@ export default function AcademyPage() {
     }
     
     const currentFetchId = ++fetchIdRef.current;
+    let timeoutId: NodeJS.Timeout | null = null;
     
     async function fetchAcademyData() {
       if (!activeProfileId) {
@@ -48,25 +49,37 @@ export default function AcademyPage() {
       }
 
       setIsLoading(true);
+      
+      // Timeout de sécurité (15 secondes)
+      timeoutId = setTimeout(() => {
+        if (currentFetchId === fetchIdRef.current) {
+          console.warn("Academy: Timeout de chargement atteint");
+          setIsLoading(false);
+        }
+      }, 15000);
 
       try {
         // Vérifier si cette requête est toujours valide
         if (currentFetchId !== fetchIdRef.current) return;
         
         // Récupérer le niveau du groupe de l'athlète
-        const { data: groupMembershipData } = await supabase
+        const { data: groupMembershipData, error: groupError } = await supabase
           .from("group_members")
           .select("group_id, groups(level_required)")
           .eq("profile_id", activeProfileId)
           .maybeSingle();
 
         if (currentFetchId !== fetchIdRef.current) return;
+        
+        if (groupError) {
+          console.error("Erreur lors du chargement du groupe:", groupError);
+        }
 
         const groupMembership = groupMembershipData as unknown as GroupMembershipWithLevel | null;
         const userLevel = groupMembership?.groups?.level_required || 1;
 
         // Récupérer les vidéos filtrées par niveau
-        const { data: videosData } = await supabase
+        const { data: videosData, error: videosError } = await supabase
           .from("academy_videos")
           .select("*")
           .eq("is_published", true)
@@ -76,12 +89,14 @@ export default function AcademyPage() {
 
         if (currentFetchId !== fetchIdRef.current) return;
 
-        if (videosData) {
+        if (videosError) {
+          console.error("Erreur lors du chargement des vidéos:", videosError);
+        } else if (videosData) {
           setVideos(videosData as AcademyVideo[]);
         }
 
         // Récupérer la progression
-        const { data: progressionDataRaw } = await supabase
+        const { data: progressionDataRaw, error: progressionError } = await supabase
           .from("profile_progression")
           .select("video_id")
           .eq("profile_id", activeProfileId)
@@ -89,13 +104,17 @@ export default function AcademyPage() {
 
         if (currentFetchId !== fetchIdRef.current) return;
 
-        const progressionData = progressionDataRaw as ProgressionRecord[] | null;
-        if (progressionData) {
-          setCompletedVideos(new Set(progressionData.map((p) => p.video_id)));
+        if (progressionError) {
+          console.error("Erreur lors du chargement de la progression:", progressionError);
+        } else {
+          const progressionData = progressionDataRaw as ProgressionRecord[] | null;
+          if (progressionData) {
+            setCompletedVideos(new Set(progressionData.map((p) => p.video_id)));
+          }
         }
 
         // Récupérer les évaluations
-        const { data: evaluationsData } = await supabase
+        const { data: evaluationsData, error: evaluationsError } = await supabase
           .from("evaluations")
           .select(`*, coach:profiles!evaluations_coach_id_fkey(*)`)
           .eq("profile_id", activeProfileId)
@@ -103,7 +122,9 @@ export default function AcademyPage() {
 
         if (currentFetchId !== fetchIdRef.current) return;
 
-        if (evaluationsData) {
+        if (evaluationsError) {
+          console.error("Erreur lors du chargement des évaluations:", evaluationsError);
+        } else if (evaluationsData) {
           setEvaluations(evaluationsData as unknown as EvaluationWithCoach[]);
         }
       } catch (error) {
@@ -112,11 +133,16 @@ export default function AcademyPage() {
       } finally {
         if (currentFetchId === fetchIdRef.current) {
           setIsLoading(false);
+          if (timeoutId) clearTimeout(timeoutId);
         }
       }
     }
 
     fetchAcademyData();
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [activeProfileId, profileLoading]);
 
   const handleVideoComplete = async (videoId: string, completed: boolean) => {

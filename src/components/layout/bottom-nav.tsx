@@ -10,25 +10,31 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: ("admin" | "coach" | "athlete")[];
+  roles?: ("admin" | "coach" | "athlete" | "parent")[];
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Accueil", icon: Home },
   { href: "/calendar", label: "Agenda", icon: Calendar },
   { href: "/team", label: "Équipe", icon: MessageSquare },
-  { href: "/academy", label: "Académie", icon: GraduationCap, roles: ["admin", "coach"] },
+  { href: "/academy", label: "Académie", icon: GraduationCap }, // Disponible pour tous
   { href: "/admin", label: "Admin", icon: Shield, roles: ["admin", "coach"] },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { activeProfile, isLoading } = useProfile();
+  const { activeProfile, isLoading, isAdmin, isCoach } = useProfile();
 
   const filteredNavItems = navItems.filter((item) => {
     if (!item.roles) return true;
     if (isLoading || !activeProfile) return false;
-    return item.roles.includes(activeProfile.role as "admin" | "coach" | "athlete");
+    
+    // Utiliser isAdmin et isCoach du contexte pour une meilleure gestion
+    if (item.roles.includes("admin") && isAdmin) return true;
+    if (item.roles.includes("coach") && isCoach) return true;
+    
+    // Fallback sur le rôle du profil
+    return item.roles.includes(activeProfile.role as "admin" | "coach" | "athlete" | "parent");
   });
 
   return (
