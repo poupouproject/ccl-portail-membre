@@ -191,7 +191,7 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
       if (timeoutId) clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, [fetchContexts, loadActiveContext, isLoading]);
+  }, [fetchContexts, loadActiveContext]);
 
   const setActiveContext = useCallback(
     async (context: UserContext) => {

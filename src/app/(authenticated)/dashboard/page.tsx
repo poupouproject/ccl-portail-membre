@@ -62,8 +62,6 @@ export default function DashboardPage() {
         return;
       }
 
-      // Réinitialiser les états immédiatement pour éviter les données périmées
-      setNextEvent(null);
       setIsLoading(true);
 
       try {
@@ -79,10 +77,14 @@ export default function DashboardPage() {
           groupIds = [activeContextGroupId];
         } else {
           // Fallback: récupérer les groupes via group_members
-          const { data: groupMembershipsData } = await supabase
+          const { data: groupMembershipsData, error: groupError } = await supabase
             .from("group_members")
             .select("group_id, groups(*)")
             .eq("profile_id", activeProfileId);
+
+          if (groupError) {
+            console.error("Erreur lors de la récupération des groupes:", groupError);
+          }
 
           const groupMemberships = groupMembershipsData as GroupMembership[] | null;
           if (groupMemberships && groupMemberships.length > 0) {
@@ -94,18 +96,24 @@ export default function DashboardPage() {
         if (currentFetchId !== fetchIdRef.current) return;
 
         // Récupérer le prochain événement via event_groups
+        let foundEvent: EventWithDetails | null = null;
+        
         if (groupIds.length > 0) {
           // Chercher les événements liés à ces groupes via event_groups
-          const { data: eventGroupsData } = await supabase
+          const { data: eventGroupsData, error: eventGroupsError } = await supabase
             .from("event_groups")
             .select("event_id")
             .in("group_id", groupIds);
+          
+          if (eventGroupsError) {
+            console.error("Erreur lors de la récupération des event_groups:", eventGroupsError);
+          }
           
           if (eventGroupsData && eventGroupsData.length > 0) {
             const rows = eventGroupsData as EventGroupRow[];
             const eventIds = [...new Set(rows.map((eg) => eg.event_id))];
             
-            const { data: eventData } = await supabase
+            const { data: eventData, error: eventError } = await supabase
               .from("events")
               .select(`*, locations(*), event_groups(group_id, groups(*))`)
               .in("id", eventIds)
@@ -115,16 +123,20 @@ export default function DashboardPage() {
               .limit(1)
               .maybeSingle();
 
+            if (eventError) {
+              console.error("Erreur lors de la récupération de l'événement:", eventError);
+            }
+
             // Vérifier si cette requête est toujours valide
             if (currentFetchId !== fetchIdRef.current) return;
 
             if (eventData) {
-              setNextEvent(eventData as unknown as EventWithDetails);
+              foundEvent = eventData as unknown as EventWithDetails;
             }
           }
         } else if (isCoach) {
           // Les coachs voient tous les événements à venir
-          const { data: eventData } = await supabase
+          const { data: eventData, error: eventError } = await supabase
             .from("events")
             .select(`*, locations(*), event_groups(group_id, groups(*))`)
             .eq("is_cancelled", false)
@@ -133,25 +145,38 @@ export default function DashboardPage() {
             .limit(1)
             .maybeSingle();
 
+          if (eventError) {
+            console.error("Erreur lors de la récupération de l'événement (coach):", eventError);
+          }
+
           // Vérifier si cette requête est toujours valide
           if (currentFetchId !== fetchIdRef.current) return;
 
           if (eventData) {
-            setNextEvent(eventData as unknown as EventWithDetails);
+            foundEvent = eventData as unknown as EventWithDetails;
           }
+        }
+        
+        // Mettre à jour l'événement seulement si la requête est toujours valide
+        if (currentFetchId === fetchIdRef.current) {
+          setNextEvent(foundEvent);
         }
 
         // Vérifier avant les annonces
         if (currentFetchId !== fetchIdRef.current) return;
 
         // Récupérer les annonces
-        const { data: announcementsData } = await supabase
+        const { data: announcementsData, error: announcementsError } = await supabase
           .from("announcements")
           .select("*")
           .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
           .order("is_pinned", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(10);
+
+        if (announcementsError) {
+          console.error("Erreur lors de la récupération des annonces:", announcementsError);
+        }
 
         if (currentFetchId !== fetchIdRef.current) return;
 
@@ -160,11 +185,15 @@ export default function DashboardPage() {
         }
 
         // Récupérer les partenaires actifs
-        const { data: partnersData } = await supabase
+        const { data: partnersData, error: partnersError } = await supabase
           .from("partners")
           .select("*")
           .eq("is_active", true)
           .order("tier", { ascending: true });
+
+        if (partnersError) {
+          console.error("Erreur lors de la récupération des partenaires:", partnersError);
+        }
 
         if (currentFetchId !== fetchIdRef.current) return;
 

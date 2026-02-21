@@ -52,9 +52,6 @@ export default function CalendarPage() {
         return;
       }
 
-      // Réinitialiser les états immédiatement
-      setUpcomingEvents([]);
-      setPastEvents([]);
       setIsLoading(true);
 
       try {
@@ -69,10 +66,14 @@ export default function CalendarPage() {
           groupIds = [activeContextGroupId];
         } else {
           // Fallback: récupérer les groupes via group_members
-          const { data: groupMembershipsData } = await supabase
+          const { data: groupMembershipsData, error: groupError } = await supabase
             .from("group_members")
             .select("group_id")
             .eq("profile_id", activeProfileId);
+
+          if (groupError) {
+            console.error("Erreur lors de la récupération des groupes:", groupError);
+          }
 
           const groupMemberships = groupMembershipsData as GroupMembership[] | null;
           if (groupMemberships && groupMemberships.length > 0) {
@@ -97,10 +98,14 @@ export default function CalendarPage() {
         
         if (groupIds.length > 0) {
           // Chercher les événements liés à ces groupes via event_groups
-          const { data: eventGroupsData } = await supabase
+          const { data: eventGroupsData, error: eventGroupsError } = await supabase
             .from("event_groups")
             .select("event_id")
             .in("group_id", groupIds);
+          
+          if (eventGroupsError) {
+            console.error("Erreur lors de la récupération des event_groups:", eventGroupsError);
+          }
           
           if (eventGroupsData) {
             const rows = eventGroupsData as EventGroupRow[];
@@ -132,7 +137,11 @@ export default function CalendarPage() {
           return;
         }
 
-        const { data: upcoming } = await upcomingQuery;
+        const { data: upcoming, error: upcomingError } = await upcomingQuery;
+
+        if (upcomingError) {
+          console.error("Erreur lors de la récupération des événements à venir:", upcomingError);
+        }
 
         // Vérifier si cette requête est toujours valide
         if (currentFetchId !== fetchIdRef.current) return;
@@ -159,7 +168,11 @@ export default function CalendarPage() {
           return;
         }
 
-        const { data: past } = await pastQuery;
+        const { data: past, error: pastError } = await pastQuery;
+
+        if (pastError) {
+          console.error("Erreur lors de la récupération des événements passés:", pastError);
+        }
 
         // Vérifier si cette requête est toujours valide
         if (currentFetchId !== fetchIdRef.current) return;
