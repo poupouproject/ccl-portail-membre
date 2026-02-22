@@ -2,11 +2,19 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, Calendar, GraduationCap, MessageSquare, Shield, MapPin, Users } from "lucide-react";
+import { Home, Calendar, GraduationCap, MessageSquare, Shield, MapPin, Users, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetIdentity, usePermissions } from "@refinedev/core";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { useActiveContext } from "@/hooks/use-active-context";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Profile } from "@/types/database";
 
 interface NavItem {
@@ -39,6 +47,7 @@ export function DesktopSidebar() {
     isAdmin: boolean;
     isCoach: boolean;
   }>({});
+  const { contexts, activeContext, setActiveContext, hasMultipleContexts } = useActiveContext();
 
   const isAdmin = permissions?.isAdmin ?? false;
   const isCoach = permissions?.isCoach ?? false;
@@ -125,7 +134,50 @@ export function DesktopSidebar() {
       </ScrollArea>
 
       {/* Footer */}
-      <div className="border-t p-4">
+      <div className="border-t p-4 space-y-3">
+        {/* Context switcher */}
+        {hasMultipleContexts && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm border hover:bg-muted transition-colors">
+                <div className="flex flex-col items-start min-w-0">
+                  <span className="text-xs text-muted-foreground">Contexte actif</span>
+                  <span className="font-medium truncate max-w-[160px]">
+                    {activeContext?.profile_name ?? "—"}
+                  </span>
+                  {activeContext && (
+                    <span className="text-xs text-muted-foreground truncate max-w-[160px]">
+                      {activeContext.group_name}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-56">
+              {contexts.map((context) => {
+                const contextId = context.subscription_id || `coach-${context.group_id}`;
+                const activeContextId = activeContext?.subscription_id || (activeContext ? `coach-${activeContext.group_id}` : null);
+                const isActive = contextId === activeContextId;
+                return (
+                  <DropdownMenuItem
+                    key={contextId}
+                    onClick={() => setActiveContext(context)}
+                    className={isActive ? "bg-club-orange/10 text-club-orange" : ""}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium">{context.profile_name}</span>
+                      <span className="text-xs text-muted-foreground">{context.group_name}</span>
+                    </div>
+                    {isActive && (
+                      <Badge variant="secondary" className="ml-auto text-xs">Actif</Badge>
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <div className="text-xs text-muted-foreground text-center">
           Club Cycliste de Lévis © 2026
         </div>

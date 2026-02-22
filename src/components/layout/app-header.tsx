@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Bike, LogOut, Bell, Settings, User, Sparkles } from "lucide-react";
+import { Bike, LogOut, Bell, Settings, User, Sparkles, Users, ChevronRight } from "lucide-react";
 import { useGetIdentity, useLogout, usePermissions } from "@refinedev/core";
 import { supabase } from "@/lib/supabase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,6 +28,7 @@ import { getInitials, formatRelativeTime } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChangelogModal } from "@/components/changelog-modal";
 import type { Notification, Profile } from "@/types/database";
+import { useActiveContext } from "@/hooks/use-active-context";
 import Link from "next/link";
 
 interface IdentityData {
@@ -46,6 +47,7 @@ export function AppHeader() {
     isCoach: boolean;
   }>({});
   const { mutate: logout } = useLogout();
+  const { contexts, activeContext, setActiveContext, hasMultipleContexts } = useActiveContext();
 
   const activeProfile = identity?.profile;
   const user = identity?.user;
@@ -316,6 +318,35 @@ export function AppHeader() {
                   Paramètres
                 </Link>
               </DropdownMenuItem>
+              {hasMultipleContexts && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    Changer de contexte
+                  </DropdownMenuLabel>
+                  {contexts.map((context) => {
+                    const contextId = context.subscription_id || `coach-${context.group_id}`;
+                    const activeContextId = activeContext?.subscription_id || (activeContext ? `coach-${activeContext.group_id}` : null);
+                    const isActive = contextId === activeContextId;
+                    return (
+                      <DropdownMenuItem
+                        key={contextId}
+                        onClick={() => setActiveContext(context)}
+                        className={isActive ? "bg-club-orange/10 text-club-orange" : ""}
+                      >
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{context.profile_name}</span>
+                            <span className="text-xs text-muted-foreground">{context.group_name}</span>
+                          </div>
+                          {isActive && <ChevronRight className="h-3 w-3 shrink-0" />}
+                        </div>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="h-4 w-4 mr-2" />
