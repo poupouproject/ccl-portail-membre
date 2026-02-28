@@ -1,8 +1,9 @@
 "use client";
 
-import { useGetIdentity, usePermissions } from "@refinedev/core";
+import { useGetIdentity } from "@refinedev/core";
 import type { User } from "@supabase/supabase-js";
 import type { Profile, RelationType } from "@/types/database";
+import { useActiveContext } from "./use-active-context";
 
 interface ProfileAccess {
   profile: Profile;
@@ -16,13 +17,6 @@ interface IdentityData {
   profile: Profile;
   profiles: ProfileAccess[];
   user: User;
-}
-
-interface PermissionsData {
-  role: string;
-  isAdmin: boolean;
-  isCoach: boolean;
-  isCoordinator: boolean;
 }
 
 interface ProfileContextType {
@@ -41,22 +35,24 @@ interface ProfileContextType {
 
 /**
  * Hook de compatibilité qui expose la même interface que l'ancien ProfileProvider
- * mais utilise Refine (useGetIdentity / usePermissions) en interne.
+ * mais utilise Refine (useGetIdentity / useActiveContext) en interne.
+ * Les permissions (isAdmin, isCoach, isCoordinator) proviennent de useActiveContext
+ * afin de respecter le contexte actif sélectionné par l'utilisateur.
  */
 export function useProfile(): ProfileContextType {
   const { data: identity, isLoading: identityLoading, refetch: refetchIdentity } =
     useGetIdentity<IdentityData>({});
-  const { data: permissions, isLoading: permissionsLoading } =
-    usePermissions<PermissionsData>({});
+  const {
+    isAdmin,
+    isCoach,
+    isCoordinator,
+    isLoading: contextLoading,
+  } = useActiveContext();
 
   const user = identity?.user ?? null;
   const profiles = identity?.profiles ?? [];
   const activeProfile = identity?.profile ?? null;
-  const isLoading = identityLoading || permissionsLoading;
-
-  const isAdmin = permissions?.isAdmin ?? false;
-  const isCoach = permissions?.isCoach ?? false;
-  const isCoordinator = permissions?.isCoordinator ?? false;
+  const isLoading = identityLoading || contextLoading;
   const hasChildren = profiles.some(
     (p) => p.relation === "parent" || p.relation === "guardian"
   );

@@ -188,9 +188,20 @@ export function useActiveContext(): ActiveContextState {
     );
   }, [contexts]);
 
-  const isCoach = permissions?.isCoach ?? activeContext?.context_type === "coach";
-  const isAdmin = permissions?.isAdmin ?? false;
-  const isCoordinator = permissions?.isCoordinator ?? false;
+  // Derive effective permissions from the active context type so that switching
+  // context actually changes what the user sees in the UI.
+  // • coach context  → respect the user's real admin/coach permissions
+  // • participant / dependent context → treat as a regular member
+  // • no context yet (loading) → fall back to the user's real permissions
+  const isCoach = activeContext != null
+    ? activeContext.context_type === "coach"
+    : (permissions?.isCoach ?? false);
+  const isAdmin = activeContext != null
+    ? activeContext.context_type === "coach" && (permissions?.isAdmin ?? false)
+    : (permissions?.isAdmin ?? false);
+  const isCoordinator = activeContext != null
+    ? activeContext.context_type === "coach" && (permissions?.isCoordinator ?? false)
+    : (permissions?.isCoordinator ?? false);
   const isParent =
     activeContext?.context_type === "dependent" ||
     contexts.some(

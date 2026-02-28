@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
+import { useLogout, useList } from "@refinedev/core";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,17 @@ interface ClaimedProfile extends Profile {
 
 export default function ProfilePage() {
   const { user, activeProfile, profiles, isLoading: profileLoading, refetch } = useProfile();
-  const [partners, setPartners] = useState<Partner[]>([]);
+  const { mutate: logout } = useLogout();
+  const { query: partnersQuery } = useList<Partner>({
+    resource: "partners",
+    filters: [
+      { field: "is_active", operator: "eq", value: true },
+      { field: "promo_code", operator: "nnull", value: true },
+    ],
+    sorters: [{ field: "tier", order: "asc" }],
+    pagination: { mode: "off" },
+  });
+  const partners = partnersQuery.data?.data ?? [];
   const [claimCode, setClaimCode] = useState("");
   const [isClaimingProfile, setIsClaimingProfile] = useState(false);
   
@@ -89,23 +100,6 @@ export default function ProfilePage() {
       });
     }
   }, [activeProfile]);
-
-  useEffect(() => {
-    async function fetchPartners() {
-      const { data } = await supabase
-        .from("partners")
-        .select("*")
-        .eq("is_active", true)
-        .not("promo_code", "is", null)
-        .order("tier");
-
-      if (data) {
-        setPartners(data as Partner[]);
-      }
-    }
-
-    fetchPartners();
-  }, []);
 
   async function handleSaveContact() {
     if (!activeProfile) return;
@@ -260,9 +254,8 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+  const handleLogout = () => {
+    logout();
   };
 
   if (profileLoading) {

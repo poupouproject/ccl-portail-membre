@@ -1,17 +1,30 @@
 "use client";
 
-import { useLogin } from "@refinedev/core";
+import { useLogin, useIsAuthenticated } from "@refinedev/core";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Bike } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showDevLogin, setShowDevLogin] = useState(false);
-  const { mutate: login, isPending: loading } = useLogin();
+  const { mutate: login, isPending: loading, data: loginResult } = useLogin();
+  const { data: isAuthenticatedData } = useIsAuthenticated();
+  const router = useRouter();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticatedData?.authenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticatedData, router]);
+
+  const loginError =
+    loginResult?.success === false ? loginResult.error : null;
 
   const handleOAuthLogin = (provider: string) => {
     login({ provider });
@@ -39,6 +52,13 @@ export default function LoginPage() {
         <p className="text-muted-foreground text-center mb-8 text-sm">
           Connectez-vous pour accéder au portail
         </p>
+
+        {/* Affichage des erreurs de connexion */}
+        {loginError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+            {loginError.message || "Erreur de connexion. Veuillez réessayer."}
+          </div>
+        )}
 
         {/* MODE DEV - Email/Password */}
         {showDevLogin ? (
