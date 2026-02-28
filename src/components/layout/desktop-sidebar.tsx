@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Home, Calendar, GraduationCap, MessageSquare, Shield, MapPin, Users, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useGetIdentity, usePermissions } from "@refinedev/core";
+import { useGetIdentity } from "@refinedev/core";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -43,14 +43,7 @@ const adminNavItems: NavItem[] = [
 export function DesktopSidebar() {
   const pathname = usePathname();
   const { data: identity, isLoading } = useGetIdentity<{ profile: Profile }>({});
-  const { data: permissions } = usePermissions<{
-    isAdmin: boolean;
-    isCoach: boolean;
-  }>({});
-  const { contexts, activeContext, setActiveContext, hasMultipleContexts } = useActiveContext();
-
-  const isAdmin = permissions?.isAdmin ?? false;
-  const isCoach = permissions?.isCoach ?? false;
+  const { contexts, activeContext, setActiveContext, hasMultipleContexts, isAdmin, isCoach } = useActiveContext();
 
   if (isLoading || !identity) return null;
 

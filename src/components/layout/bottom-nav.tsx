@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Calendar, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useGetIdentity, usePermissions } from "@refinedev/core";
-import type { Profile } from "@/types/database";
+import { useActiveContext } from "@/hooks/use-active-context";
 
 interface NavItem {
   href: string;
@@ -23,18 +22,11 @@ const navItems: NavItem[] = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { data: identity, isLoading } = useGetIdentity<{ profile: Profile }>({});
-  const { data: permissions } = usePermissions<{
-    isAdmin: boolean;
-    isCoach: boolean;
-  }>({});
-
-  const isAdmin = permissions?.isAdmin ?? false;
-  const isCoach = permissions?.isCoach ?? false;
+  const { isAdmin, isCoach, isLoading } = useActiveContext();
 
   const filteredNavItems = navItems.filter((item) => {
     if (!item.requiresStaff) return true;
-    if (isLoading || !identity) return false;
+    if (isLoading) return false;
     return isAdmin || isCoach;
   });
 

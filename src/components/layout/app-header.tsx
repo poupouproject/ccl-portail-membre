@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Bike, LogOut, Bell, Settings, User, Sparkles, Users, ChevronRight } from "lucide-react";
-import { useGetIdentity, useLogout, usePermissions } from "@refinedev/core";
+import { useGetIdentity, useLogout } from "@refinedev/core";
 import { supabase } from "@/lib/supabase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -41,18 +41,11 @@ interface IdentityData {
 
 export function AppHeader() {
   const { data: identity, isLoading } = useGetIdentity<IdentityData>({});
-  const { data: permissions } = usePermissions<{
-    role: string;
-    isAdmin: boolean;
-    isCoach: boolean;
-  }>({});
   const { mutate: logout } = useLogout();
-  const { contexts, activeContext, setActiveContext, hasMultipleContexts } = useActiveContext();
+  const { contexts, activeContext, setActiveContext, hasMultipleContexts, isAdmin, isCoach } = useActiveContext();
 
   const activeProfile = identity?.profile;
   const user = identity?.user;
-  const isAdmin = permissions?.isAdmin ?? false;
-  const isCoach = permissions?.isCoach ?? false;
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
